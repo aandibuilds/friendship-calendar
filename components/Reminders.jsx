@@ -14,7 +14,7 @@ export default function Reminders({ friends, quiet, onOpenFriend, onUpdateFriend
         <div className="page-sub">Friends you haven't caught up with lately.</div>
         <div className="reminders-list">
           <div className="reminder-item moderate">
-            <div className="reminder-avatar" style={{ background: 'var(--ink-muted)' }}>🌙</div>
+            <div className="reminder-avatar" style={{ background: 'var(--plum)', color: 'white', fontSize: 14, fontWeight: 700 }}>Q</div>
             <div className="reminder-info">
               <div className="reminder-name">Quiet hours active</div>
               <div className="reminder-msg">Reminders suppressed until {quiet.end}.</div>
@@ -39,7 +39,7 @@ export default function Reminders({ friends, quiet, onOpenFriend, onUpdateFriend
       return { ...f, hangouts: [...(f.hangouts || []), { date: d.toISOString().split('T')[0], activity: `Snoozed (${days === 999 ? 'not needed' : days + 'd'})` }] };
     });
     onUpdateFriends(updated);
-    showToast(days === 999 ? 'Marked as not needed 👍' : `Snoozed for ${days} day${days !== 1 ? 's' : ''} 😴`);
+    showToast(days === 999 ? 'Marked as not needed.' : `Snoozed for ${days} day${days !== 1 ? 's' : ''}.`);
   }
 
   return (
@@ -61,7 +61,7 @@ export default function Reminders({ friends, quiet, onOpenFriend, onUpdateFriend
               </div>
               <div className="reminder-actions">
                 <button className="btn btn-primary btn-sm" onClick={() => onOpenFriend(f.id)}>Log</button>
-                <button className="btn btn-ghost btn-sm" onClick={(e) => { e.stopPropagation(); setSnoozeMenu(snoozeMenu === f.id ? null : f.id); }}>Snooze ▾</button>
+                <button type="button" className="btn btn-ghost btn-sm" onClick={(e) => { e.stopPropagation(); setSnoozeMenu(snoozeMenu === f.id ? null : f.id); }}>Snooze</button>
               </div>
               {snoozeMenu === f.id && (
                 <div className="snooze-menu" style={{ position: 'absolute', right: 14, top: '100%', zIndex: 50 }}>
@@ -74,9 +74,8 @@ export default function Reminders({ friends, quiet, onOpenFriend, onUpdateFriend
           );
         }) : (
           <div className="empty-state">
-            <div className="empty-icon">🎉</div>
-            <div className="empty-title">All caught up!</div>
-            <div className="empty-sub">You're keeping up with everyone.</div>
+            <div className="empty-title">All caught up</div>
+            <div className="empty-sub">You&apos;re keeping up with everyone.</div>
           </div>
         )}
       </div>

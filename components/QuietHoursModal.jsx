@@ -11,14 +11,14 @@ export default function QuietHoursModal({ quiet, onClose, onSave }) {
   function save() {
     onSave({ start, end, enabled });
     onClose();
-    showToast(enabled ? 'Quiet hours on 🌙' : 'Quiet hours off');
+    showToast(enabled ? 'Quiet hours on' : 'Quiet hours off');
   }
 
   return (
     <div className="modal-overlay" onClick={e => e.target === e.currentTarget && onClose()}>
       <div className="modal" onClick={e => e.stopPropagation()} style={{ maxWidth: 360 }}>
         <div className="modal-header" style={{ justifyContent: 'space-between' }}>
-          <div style={{ fontFamily: 'Fraunces, serif', fontSize: 18, fontWeight: 600 }}>🌙 Quiet Hours</div>
+          <div className="modal-title">Quiet hours</div>
           <button onClick={onClose} style={{ background: 'none', border: 'none', fontSize: 18, cursor: 'pointer', color: 'var(--ink-muted)' }}>✕</button>
         </div>
         <div className="modal-body">
@@ -33,7 +33,7 @@ export default function QuietHoursModal({ quiet, onClose, onSave }) {
           </div>
           <div className="form-group">
             <label style={{ display: 'flex', alignItems: 'center', gap: 9, cursor: 'pointer', fontSize: 13 }}>
-              <input type="checkbox" checked={enabled} onChange={e => setEnabled(e.target.checked)} style={{ width: 15, height: 15, accentColor: 'var(--terra)' }} />
+              <input type="checkbox" checked={enabled} onChange={e => setEnabled(e.target.checked)} style={{ width: 15, height: 15, accentColor: 'var(--primary)' }} />
               Enable quiet hours
             </label>
           </div>

@@ -1,9 +1,9 @@
 'use client';
 import { useState } from 'react';
 import { useToast } from '../lib/toast';
-import { callClaude, categoryEmoji, buildProposeShareLink } from '../lib/data';
+import { callClaude } from '../lib/data';
 
-const CATEGORIES = ['🎵 Music','🍕 Food & drink','🎨 Art','🎭 Performance','🏃 Fitness','🌿 Outdoors','🎮 Gaming','🍸 Nightlife','🎓 Learning'];
+const CATEGORIES = ['Music', 'Food & drink', 'Art', 'Performance', 'Fitness', 'Outdoors', 'Gaming', 'Nightlife', 'Learning'];
 
 export default function ProposeModal({ friends, onClose, onSave }) {
   const showToast = useToast();
@@ -43,15 +43,15 @@ export default function ProposeModal({ friends, onClose, onSave }) {
 
   async function fetchFromUrl() {
     if (!url.trim()) { showToast('Please enter a URL'); return; }
-    setFetchState('loading'); setFetchStatus('✦ Fetching event details…');
+    setFetchState('loading'); setFetchStatus('Fetching event details…');
     const prompt = `You are a web scraping assistant. A user pasted this URL: "${url}"\n\nBased on the URL and domain info (Eventbrite, RA, Posh, Facebook Events, Meetup, etc.), extract or intelligently guess the likely event details.\n\nReturn ONLY a valid JSON object with these exact keys:\n{\n  "name": "event name",\n  "date": "YYYY-MM-DD or empty",\n  "time": "HH:MM (24h) or empty",\n  "location": "venue/city or empty",\n  "description": "1-2 sentence description or empty",\n  "category": "one of: Music, Food & drink, Art, Performance, Fitness, Outdoors, Gaming, Nightlife, Learning, or empty"\n}\nOnly return the JSON object, nothing else.`;
     try {
       const text = await callClaude(prompt);
       const data = JSON.parse(text.replace(/```json|```/g, '').trim());
       autofill({ ...data, sourceUrl: url }, `Details fetched from ${new URL(url).hostname}`);
-      setFetchState('success'); setFetchStatus('✅ Event details loaded!');
+      setFetchState('success'); setFetchStatus('Event details loaded.');
     } catch {
-      setFetchState('error'); setFetchStatus('⚠ Couldn\'t auto-fetch — fill in manually on the next step.');
+      setFetchState('error'); setFetchStatus('Couldn\'t auto-fetch — fill in manually on the next step.');
     }
   }
 
@@ -98,11 +98,10 @@ export default function ProposeModal({ friends, onClose, onSave }) {
       return { ...f, invites: [...(f.invites || []), { eventId: proposed.id, eventName: proposed.name, date: date + (time ? 'T' + time : ''), status: 'pending', type: 'proposed' }] };
     });
     onSave({ proposed, friendUpdates });
-    showToast(`"${proposed.name}" proposed to ${ids.length} friend${ids.length !== 1 ? 's' : ''}! 🔍`);
+    showToast(`"${proposed.name}" proposed to ${ids.length} friend${ids.length !== 1 ? 's' : ''}.`);
     // Show share toast after
     setTimeout(() => {
-      const link = buildProposeShareLink(proposed);
-      showToast(`Share link ready — click events tab to copy 🔗`);
+      showToast('Share link ready — open Events to copy it.');
     }, 600);
     onClose();
   }
@@ -112,7 +111,7 @@ export default function ProposeModal({ friends, onClose, onSave }) {
       <div className="modal modal-lg" onClick={e => e.stopPropagation()}>
         <div className="modal-header" style={{ justifyContent: 'space-between', alignItems: 'center' }}>
           <div>
-            <div style={{ fontFamily: 'Fraunces, serif', fontSize: 18, fontWeight: 600, letterSpacing: '-0.02em' }}>
+            <div className="modal-title">
               {['Propose an event','Event details','Loop in friends'][step - 1]}
             </div>
             <div style={{ fontSize: '11.5px', color: 'var(--ink-muted)', marginTop: 3 }}>
@@ -129,10 +128,10 @@ export default function ProposeModal({ friends, onClose, onSave }) {
           {/* STEP 1 — SOURCE */}
           {step === 1 && (
             <>
-              <p style={{ fontSize: '13.5px', color: 'var(--ink-muted)', marginBottom: 18, lineHeight: 1.6 }}>Saw something on Instagram, Eventbrite, or anywhere else? Capture it here before you forget.</p>
-              {[['url','🔗','Paste a URL','Drop in an Eventbrite, RA, Posh, Facebook Events, or any link — AI will pull the details'],
-                ['image','📸','Upload a screenshot','Screenshot from Instagram, a flyer, or anything visual — AI reads the details'],
-                ['manual','✏️','Enter manually','Type in the event name, date, and location yourself']
+              <p style={{ fontSize: '13.5px', color: 'var(--ink-muted)', marginBottom: 12, lineHeight: 1.55 }}>Saw something on Instagram, Eventbrite, or anywhere else? Capture it here before you forget.</p>
+              {[['url','URL','Paste a URL','Drop in an Eventbrite, RA, Posh, Facebook Events, or any link — AI will pull the details'],
+                ['image','IMG','Upload a screenshot','Screenshot from Instagram, a flyer, or anything visual — AI reads the details'],
+                ['manual','TYPE','Enter manually','Type in the event name, date, and location yourself']
               ].map(([t, icon, label, sub]) => (
                 <div key={t} className={`source-option ${source === t ? 'selected' : ''}`} onClick={() => setSource(t)}>
                   <div className="source-icon">{icon}</div>
@@ -146,7 +145,7 @@ export default function ProposeModal({ friends, onClose, onSave }) {
                   <label className="form-label">Event URL</label>
                   <div className="fetch-bar">
                     <input type="url" className="input-full" value={url} onChange={e => setUrl(e.target.value)} placeholder="https://www.eventbrite.com/e/..." style={{ flex: 1 }} onKeyDown={e => e.key === 'Enter' && fetchFromUrl()} />
-                    <button className="btn btn-primary btn-sm" onClick={fetchFromUrl} style={{ flexShrink: 0, borderRadius: 'var(--radius-xs)' }}>Fetch ✦</button>
+                    <button className="btn btn-primary btn-sm" onClick={fetchFromUrl} style={{ flexShrink: 0, borderRadius: 'var(--radius-xs)' }}>Fetch</button>
                   </div>
                   {fetchStatus && <div className={`fetch-status ${fetchState}`}>{fetchStatus}</div>}
                 </div>
@@ -158,7 +157,7 @@ export default function ProposeModal({ friends, onClose, onSave }) {
                   {!imgPreview ? (
                     <div className="drop-zone">
                       <input type="file" accept="image/*" onChange={handleImageUpload} />
-                      <div className="drop-zone-icon">🖼️</div>
+                      <div className="drop-zone-icon">Add</div>
                       <div className="drop-zone-label">Click to upload or drag & drop</div>
                       <div className="drop-zone-sub">PNG, JPG, WEBP — AI will read the event details</div>
                     </div>
@@ -167,7 +166,7 @@ export default function ProposeModal({ friends, onClose, onSave }) {
                   )}
                   {imgFetchState && (
                     <div className={`fetch-status ${imgFetchState}`} style={{ marginTop: 6 }}>
-                      {imgFetchState === 'loading' ? '✦ Reading event details from image…' : imgFetchState === 'success' ? '✅ Event details extracted!' : '⚠ Couldn\'t read image — fill in manually on the next step.'}
+                      {imgFetchState === 'loading' ? 'Reading event details from image…' : imgFetchState === 'success' ? 'Event details extracted.' : 'Couldn\'t read image — fill in manually on the next step.'}
                     </div>
                   )}
                 </div>
@@ -179,8 +178,8 @@ export default function ProposeModal({ friends, onClose, onSave }) {
           {step === 2 && (
             <>
               {autofillMsg && (
-                <div style={{ background: 'var(--plum-pale)', border: '1px solid #D8CFF0', borderRadius: 'var(--radius-xs)', padding: '9px 12px', marginBottom: 14, fontSize: '12.5px', color: 'var(--plum)', display: 'flex', alignItems: 'center', gap: 7 }}>
-                  <span>✦</span><span>{autofillMsg} — check and edit as needed.</span>
+                <div style={{ background: 'var(--plum-pale)', border: '1px solid rgba(124, 58, 237, 0.22)', borderRadius: 'var(--radius-xs)', padding: '9px 12px', marginBottom: 12, fontSize: '12.5px', color: 'var(--plum)', display: 'flex', alignItems: 'center', gap: 7 }}>
+                  <span>{autofillMsg} — check and edit as needed.</span>
                 </div>
               )}
               <div className="form-group"><label className="form-label">Event name *</label><input className="input-full" value={name} onChange={e => setName(e.target.value)} placeholder="e.g. Peggy Gou at Printworks" autoFocus /></div>
@@ -194,10 +193,9 @@ export default function ProposeModal({ friends, onClose, onSave }) {
               <div className="form-group">
                 <label className="form-label">Category</label>
                 <div style={{ display: 'flex', gap: 7, flexWrap: 'wrap' }}>
-                  {CATEGORIES.map(c => {
-                    const cat = c.replace(/^[^\s]+\s/, '');
-                    return <div key={c} className={`filter-tag ${category === cat ? 'active' : ''}`} onClick={() => setCategory(cat)}>{c}</div>;
-                  })}
+                  {CATEGORIES.map(c => (
+                    <div key={c} className={`filter-tag ${category === c ? 'active' : ''}`} onClick={() => setCategory(c)}>{c}</div>
+                  ))}
                 </div>
               </div>
             </>
@@ -206,7 +204,7 @@ export default function ProposeModal({ friends, onClose, onSave }) {
           {/* STEP 3 — FRIENDS */}
           {step === 3 && (
             <>
-              <p style={{ fontSize: 13, color: 'var(--ink-muted)', marginBottom: 16, lineHeight: 1.5 }}>Who should know about this? They'll get a proposal card in the Events tab.</p>
+              <p style={{ fontSize: 13, color: 'var(--ink-muted)', marginBottom: 12, lineHeight: 1.5 }}>Who should know about this? They&apos;ll get a proposal card in the Events tab.</p>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, maxHeight: 300, overflowY: 'auto', marginBottom: 14 }}>
                 {friends.map(f => (
                   <div key={f.id} className={`invitee-card ${selectedFriends.has(f.id) ? 'selected' : ''}`} onClick={() => toggleFriend(f.id)}>
@@ -217,8 +215,8 @@ export default function ProposeModal({ friends, onClose, onSave }) {
                 ))}
               </div>
               {selectedFriends.size > 0 && (
-                <div style={{ padding: '10px 12px', background: 'var(--plum-pale)', border: '1px solid #D8CFF0', borderRadius: 'var(--radius-xs)', fontSize: 13, color: 'var(--plum)' }}>
-                  ✦ Proposing to: {[...selectedFriends].map(id => friends.find(f => f.id === id)?.name || '?').join(', ')}
+                <div style={{ padding: '10px 12px', background: 'var(--plum-pale)', border: '1px solid rgba(124, 58, 237, 0.22)', borderRadius: 'var(--radius-xs)', fontSize: 13, color: 'var(--plum)' }}>
+                  Proposing to: {[...selectedFriends].map(id => friends.find(f => f.id === id)?.name || '?').join(', ')}
                 </div>
               )}
             </>
@@ -229,9 +227,9 @@ export default function ProposeModal({ friends, onClose, onSave }) {
           {step > 1 ? <button className="btn btn-ghost" onClick={() => setStep(s => s - 1)}>← Back</button> : <span />}
           <div style={{ display: 'flex', gap: 8 }}>
             <button className="btn btn-ghost" onClick={onClose}>Cancel</button>
-            <button className="btn" onClick={nextStep}
-              style={{ background: 'var(--plum)', color: 'white', borderRadius: 99, fontSize: '12.5px', padding: '8px 18px', cursor: 'pointer', border: 'none', fontFamily: 'DM Sans, sans-serif', fontWeight: 600 }}>
-              {step === 3 ? 'Propose & share ✦' : 'Next →'}
+            <button type="button" className="btn btn-primary btn-sm" onClick={nextStep}
+              style={{ borderRadius: 99, padding: '8px 18px' }}>
+              {step === 3 ? 'Propose & share' : 'Next →'}
             </button>
           </div>
         </div>

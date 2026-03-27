@@ -16,4 +16,4 @@ export function ToastProvider({ children }) {
     </ToastContext.Provider>
   );
 }
-export const useToast = () => useContext(ToastContext);
+export const useToast = () => useContext(ToastContext) ?? (() => {});

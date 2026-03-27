@@ -7,7 +7,7 @@ import { getHealthScore, getDaysSince, getStreak, fmtDate } from '../lib/data';
 export default function Dashboard({ friends, onOpenFriend, onShowView }) {
   const [range, setRange] = useState(6);
   const hr = new Date().getHours();
-  const greeting = hr < 12 ? 'Good morning ☀️' : hr < 17 ? 'Good afternoon ⛅' : 'Good evening 🌙';
+  const greeting = hr < 12 ? 'Good morning' : hr < 17 ? 'Good afternoon' : 'Good evening';
 
   const mStart = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
   const stats = useMemo(() => {
@@ -47,13 +47,44 @@ export default function Dashboard({ friends, onOpenFriend, onShowView }) {
   return (
     <div className="view">
       <div className="page-title">{greeting}</div>
-      <div className="page-sub">Here's the state of your friendships.</div>
+      <div className="page-sub">
+        The state of your{' '}
+        <span className="text-gradient" style={{ fontWeight: 700 }}>
+          friendships
+        </span>
+        {' '}
+        — clear, current, and kind.
+      </div>
 
       <div className="stats-row">
-        <div className="stat-card"><div className="stat-emoji">👥</div><div className="stat-value" style={{ color: 'var(--terra)' }}>{friends.length}</div><div className="stat-label">Friends tracked</div></div>
-        <div className="stat-card"><div className="stat-emoji">🎉</div><div className="stat-value" style={{ color: 'var(--sage)' }}>{stats.mH}</div><div className="stat-label">Hangouts this month</div></div>
-        <div className="stat-card"><div className="stat-emoji">⏰</div><div className="stat-value" style={{ color: 'var(--amber)' }}>{stats.ov}</div><div className="stat-label">Overdue check-ins</div></div>
-        <div className="stat-card"><div className="stat-emoji">🔥</div><div className="stat-value" style={{ color: 'var(--plum)' }}>{stats.st}</div><div className="stat-label">Active streaks</div></div>
+        <div className="stat-card">
+          <div className="stat-emoji" style={{ fontSize: 11, letterSpacing: '.18em', textTransform: 'uppercase', color: 'var(--ink-muted)' }}>
+            People
+          </div>
+          <div className="stat-value stat-accent-primary">{friends.length}</div>
+          <div className="stat-label">Friends tracked</div>
+        </div>
+        <div className="stat-card">
+          <div className="stat-emoji" style={{ fontSize: 11, letterSpacing: '.18em', textTransform: 'uppercase', color: 'var(--ink-muted)' }}>
+            Hangouts
+          </div>
+          <div className="stat-value stat-accent-teal">{stats.mH}</div>
+          <div className="stat-label">This month</div>
+        </div>
+        <div className="stat-card">
+          <div className="stat-emoji" style={{ fontSize: 11, letterSpacing: '.18em', textTransform: 'uppercase', color: 'var(--ink-muted)' }}>
+            Overdue
+          </div>
+          <div className="stat-value stat-accent-violet">{stats.ov}</div>
+          <div className="stat-label">Check-ins</div>
+        </div>
+        <div className="stat-card">
+          <div className="stat-emoji" style={{ fontSize: 11, letterSpacing: '.18em', textTransform: 'uppercase', color: 'var(--ink-muted)' }}>
+            Streaks
+          </div>
+          <div className="stat-value stat-accent-plum">{stats.st}</div>
+          <div className="stat-label">Active</div>
+        </div>
       </div>
 
       <div className="trend-wrap">
@@ -66,7 +97,7 @@ export default function Dashboard({ friends, onOpenFriend, onShowView }) {
           </select>
         </div>
         <div className="trend-canvas-wrap">
-          <BarChart labels={trendData.labels} data={trendData.data} color="#C05A3A" />
+          <BarChart labels={trendData.labels} data={trendData.data} color="#5B4FFF" />
         </div>
       </div>
 
@@ -77,7 +108,13 @@ export default function Dashboard({ friends, onOpenFriend, onShowView }) {
       <div className="friends-grid">
         {overdueList.length
           ? overdueList.map(f => <FriendCard key={f.id} friend={f} onClick={onOpenFriend} />)
-          : <div className="empty-state"><div className="empty-icon">✨</div><div className="empty-title">All caught up!</div><div className="empty-sub">You're doing great.</div></div>
+          : (
+            <div className="empty-state">
+              <div className="empty-icon" style={{ fontSize: 24 }}>∙</div>
+              <div className="empty-title">All caught up</div>
+              <div className="empty-sub">You&apos;re in a great place with your people.</div>
+            </div>
+          )
         }
       </div>
 

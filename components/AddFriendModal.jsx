@@ -2,7 +2,7 @@
 import { useState } from 'react';
 import { useToast } from '../lib/toast';
 
-const COLORS = ['#C05A3A','#5A8C6A','#7B8FA1','#7A5A8C','#B8820A','#B85C6E','#6B8E8E','#8B7355'];
+const COLORS = ['#5B4FFF', '#7C3AED', '#D946EF', '#FB7185', '#F472B6', '#14B8A6', '#06B6D4', '#A78BFA'];
 const ALL_TAGS = ['College','Work','Family','Neighbors','Travel','Childhood'];
 
 export default function AddFriendModal({ onClose, onSave, prefill }) {
@@ -10,7 +10,7 @@ export default function AddFriendModal({ onClose, onSave, prefill }) {
   const [name, setName] = useState(prefill?.name || '');
   const [notes, setNotes] = useState(prefill?.notes || '');
   const [cadence, setCadence] = useState(30);
-  const [color, setColor] = useState(prefill?.color || '#C05A3A');
+  const [color, setColor] = useState(prefill?.color || '#5B4FFF');
   const [tags, setTags] = useState([]);
 
   function toggleTag(t) { setTags(ts => ts.includes(t) ? ts.filter(x => x !== t) : [...ts, t]); }
@@ -19,14 +19,14 @@ export default function AddFriendModal({ onClose, onSave, prefill }) {
     if (!name.trim()) { showToast('Please enter a name'); return; }
     onSave({ id: Date.now(), name: name.trim(), color, tags, cadence, notes: notes.trim(), hangouts: [] });
     onClose();
-    showToast(`${name.trim()} added! 💚`);
+    showToast(`${name.trim()} added.`);
   }
 
   return (
     <div className="modal-overlay" onClick={e => e.target === e.currentTarget && onClose()}>
       <div className="modal" onClick={e => e.stopPropagation()}>
         <div className="modal-header" style={{ justifyContent: 'space-between' }}>
-          <div style={{ fontFamily: 'Fraunces, serif', fontSize: 18, fontWeight: 600, letterSpacing: '-0.02em' }}>Add a friend 💚</div>
+          <div className="modal-title">Add a friend</div>
           <button onClick={onClose} style={{ background: 'none', border: 'none', fontSize: 18, cursor: 'pointer', color: 'var(--ink-muted)' }}>✕</button>
         </div>
         <div className="modal-body">

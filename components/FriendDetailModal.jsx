@@ -45,7 +45,7 @@ export default function FriendDetailModal({ friend: f, profile, onClose, onUpdat
     const act = hangoutActivity.trim() || 'Hung out';
     const updated = { ...f, hangouts: [...(f.hangouts || []), { date: hangoutDate, activity: act }] };
     onUpdate(updated); setHangoutActivity('');
-    showToast('Hangout logged! 🎉');
+    showToast('Hangout logged.');
   }
 
   async function loadConvoStarters() {
@@ -69,9 +69,6 @@ export default function FriendDetailModal({ friend: f, profile, onClose, onUpdat
       setAiPanel({ type: 'ideas', label: `Hangout ideas for you & ${f.name}`, items });
     } catch { setAiPanel({ type: 'error' }); setIdeasUsed(false); }
   }
-
-  const convoIcons = ['💭','🎯','🌟','❓','💬','🤔'];
-  const ideaIcons  = ['🎯','🌿','🍜','🎨','🎬','🏃','☕','🎲'];
 
   return (
     <div className="modal-overlay" onClick={e => e.target === e.currentTarget && onClose()}>
@@ -107,7 +104,7 @@ export default function FriendDetailModal({ friend: f, profile, onClose, onUpdat
             <div className="modal-section">
               <div className="modal-section-title">Streak</div>
               <div className="streak-row">
-                <span style={{ fontSize: 20 }}>🔥</span>
+                <span style={{ width: 4, height: 28, borderRadius: 3, background: 'var(--primary)', flexShrink: 0 }} aria-hidden />
                 <div>
                   <div className="streak-val">{streak} month{streak !== 1 ? 's' : ''}</div>
                   <div className="streak-lbl">consecutive months with a hangout</div>
@@ -126,8 +123,8 @@ export default function FriendDetailModal({ friend: f, profile, onClose, onUpdat
           <div className="modal-section">
             <div className="modal-section-title">AI Suggestions</div>
             <div className="ai-actions">
-              <button className="btn-ai" disabled={convoUsed && aiPanel?.type === 'loading'} onClick={loadConvoStarters}>💬 Conversation starters</button>
-              <button className="btn-ai" disabled={ideasUsed && aiPanel?.type === 'loading'} onClick={loadHangoutIdeas}>🎯 Hangout ideas</button>
+              <button type="button" className="btn-ai" disabled={convoUsed && aiPanel?.type === 'loading'} onClick={loadConvoStarters}>Conversation starters</button>
+              <button type="button" className="btn-ai" disabled={ideasUsed && aiPanel?.type === 'loading'} onClick={loadHangoutIdeas}>Hangout ideas</button>
             </div>
             {aiPanel && (
               <div className="ai-panel">
@@ -137,17 +134,17 @@ export default function FriendDetailModal({ friend: f, profile, onClose, onUpdat
                     <div className="ai-loading">Thinking<span className="ai-loading-dots" /></div>
                   </>
                 )}
-                {aiPanel.type === 'error' && <div style={{ fontSize: 13, color: 'var(--terra)' }}>Couldn't load suggestions. Check your connection.</div>}
+                {aiPanel.type === 'error' && <div style={{ fontSize: 13, color: 'var(--health-low)' }}>Couldn&apos;t load suggestions. Check your connection.</div>}
                 {(aiPanel.type === 'convo' || aiPanel.type === 'ideas') && (
                   <>
                     <div className="ai-panel-header"><span className="ai-chip">AI</span> {aiPanel.label}</div>
                     {(aiPanel.items || []).map((item, i) => (
                       <div key={i} className="ai-result-item"
                         onClick={() => {
-                          if (aiPanel.type === 'convo') { navigator.clipboard.writeText(item); showToast('Copied to clipboard! 📋'); }
-                          else { setHangoutActivity(item.length > 60 ? item.slice(0, 57) + '…' : item); showToast('Added to hangout log ✓'); }
+                          if (aiPanel.type === 'convo') { navigator.clipboard.writeText(item); showToast('Copied to clipboard.'); }
+                          else { setHangoutActivity(item.length > 60 ? item.slice(0, 57) + '…' : item); showToast('Added to hangout log.'); }
                         }}>
-                        <span className="item-icon">{aiPanel.type === 'convo' ? convoIcons[i % convoIcons.length] : ideaIcons[i % ideaIcons.length]}</span>
+                        <span className="item-icon">{i + 1}</span>
                         <span>{item}</span>
                       </div>
                     ))}
@@ -164,7 +161,7 @@ export default function FriendDetailModal({ friend: f, profile, onClose, onUpdat
           {f.notes && (
             <div className="modal-section">
               <div className="modal-section-title">Notes</div>
-              <div style={{ fontSize: 13, color: 'var(--ink-soft)', fontStyle: 'italic', background: 'var(--parchment)', padding: '10px 12px', borderRadius: 'var(--radius-xs)', lineHeight: 1.5 }}>
+              <div style={{ fontSize: 13, color: 'var(--ink-soft)', fontStyle: 'italic', background: 'var(--plum-pale)', padding: '10px 12px', borderRadius: 'var(--radius-xs)', lineHeight: 1.5 }}>
                 {f.notes}
               </div>
             </div>

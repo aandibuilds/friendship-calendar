@@ -3,10 +3,10 @@ import { useState, useMemo } from 'react';
 import { getStreak, buildShareProfileLink } from '../lib/data';
 import { useToast } from '../lib/toast';
 
-const COLORS = ['#C05A3A','#5A8C6A','#7B8FA1','#7A5A8C','#B8820A','#B85C6E','#6B8E8E','#1A1714'];
-const HOBBIES = ['🧗 Hiking','🍳 Cooking','📚 Reading','🎮 Gaming','🎨 Art','🎵 Music','🏋️ Fitness','✈️ Travel','📸 Photography','🌿 Gardening'];
-const TIMES = ['☀️ Weekend mornings','🌆 Weekday evenings','🌙 Weekend nights','🍽️ Weekday lunches','🎉 Any time!'];
-const HANGTYPES = ['☕ Coffee catch-ups','🍜 Dinner out','🏠 House parties','🎬 Movies','🌲 Outdoor activities','🎲 Game nights','🎵 Live music','🏃 Active outings'];
+const COLORS = ['#5B4FFF', '#7C3AED', '#D946EF', '#FB7185', '#F472B6', '#14B8A6', '#06B6D4', '#A78BFA'];
+const HOBBIES = ['Hiking', 'Cooking', 'Reading', 'Gaming', 'Art', 'Music', 'Fitness', 'Travel', 'Photography', 'Gardening'];
+const TIMES = ['Weekend mornings', 'Weekday evenings', 'Weekend nights', 'Weekday lunches', 'Any time'];
+const HANGTYPES = ['Coffee catch-ups', 'Dinner out', 'House parties', 'Movies', 'Outdoor activities', 'Game nights', 'Live music', 'Active outings'];
 
 export default function Profile({ profile, onUpdateProfile, friends }) {
   const [editing, setEditing] = useState(false);
@@ -25,7 +25,7 @@ export default function Profile({ profile, onUpdateProfile, friends }) {
   function cancelEdit() { setEditing(false); setShowColorPicker(false); }
   function saveProfile() {
     onUpdateProfile(draft); setEditing(false); setShowColorPicker(false);
-    showToast('Profile saved! ✓');
+    showToast('Profile saved.');
   }
   function toggleTag(arr, val) {
     return arr.includes(val) ? arr.filter(x => x !== val) : [...arr, val];
@@ -36,7 +36,7 @@ export default function Profile({ profile, onUpdateProfile, friends }) {
 
   const initial = profile.name ? profile.name[0].toUpperCase() : '?';
   const heroSub = profile.location || profile.birthday
-    ? [profile.location ? `📍 ${profile.location}` : '', profile.birthday ? `${Math.floor((Date.now() - new Date(profile.birthday)) / (365.25 * 86400000))} yrs` : ''].filter(Boolean).join('  ·  ')
+    ? [profile.location ? profile.location : '', profile.birthday ? `${Math.floor((Date.now() - new Date(profile.birthday)) / (365.25 * 86400000))} yrs` : ''].filter(Boolean).join('  ·  ')
     : profile.bio ? profile.bio.slice(0, 50) + (profile.bio.length > 50 ? '…' : '')
     : 'Edit your profile →';
 
@@ -45,15 +45,15 @@ export default function Profile({ profile, onUpdateProfile, friends }) {
       {/* HERO */}
       <div className="profile-hero">
         <div className="profile-avatar-wrap">
-          <div className="profile-avatar" style={{ background: profile.color || '#C05A3A' }}>{initial}</div>
-          <button className="profile-avatar-edit" onClick={() => setShowColorPicker(v => !v)} title="Change color">🎨</button>
+          <div className="profile-avatar" style={{ background: profile.color || 'var(--primary)' }}>{initial}</div>
+          <button type="button" className="profile-avatar-edit" onClick={() => setShowColorPicker(v => !v)} title="Change color" aria-label="Change profile color">Hue</button>
         </div>
         <div className="profile-hero-info">
           <div className="profile-hero-name">{profile.name || 'Your Name'}</div>
           <div className="profile-hero-sub">{heroSub}</div>
         </div>
         <div style={{ marginLeft: 'auto', display: 'flex', gap: 7, alignSelf: 'flex-start' }}>
-          <button className="btn btn-sage btn-sm" onClick={() => { if (!profile.name) { showToast('Add your name first!'); return; } setShowShareModal(true); }}>🔗 Share</button>
+          <button className="btn btn-primary btn-sm" onClick={() => { if (!profile.name) { showToast('Add your name first!'); return; } setShowShareModal(true); }}>Share</button>
           <button className="btn btn-ghost btn-sm" onClick={editing ? cancelEdit : startEdit}>{editing ? 'Cancel' : 'Edit'}</button>
         </div>
       </div>
@@ -74,35 +74,35 @@ export default function Profile({ profile, onUpdateProfile, friends }) {
       {!editing && (
         <>
           <div className="profile-section-grid">
-            <div className="profile-info-card"><div className="profile-info-label">📍 Location</div><div className="profile-info-val">{profile.location || '—'}</div></div>
-            <div className="profile-info-card"><div className="profile-info-label">🎂 Birthday</div><div className="profile-info-val">{profile.birthday ? new Date(profile.birthday + 'T12:00:00').toLocaleDateString('en-US', { month: 'long', day: 'numeric' }) : '—'}</div></div>
-            <div className="profile-info-card" style={{ gridColumn: '1/-1' }}><div className="profile-info-label">✍️ Bio</div><div className="profile-info-val" style={{ fontStyle: 'italic', color: 'var(--ink-soft)' }}>{profile.bio || '—'}</div></div>
+            <div className="profile-info-card"><div className="profile-info-label">Location</div><div className="profile-info-val">{profile.location || '—'}</div></div>
+            <div className="profile-info-card"><div className="profile-info-label">Birthday</div><div className="profile-info-val">{profile.birthday ? new Date(profile.birthday + 'T12:00:00').toLocaleDateString('en-US', { month: 'long', day: 'numeric' }) : '—'}</div></div>
+            <div className="profile-info-card" style={{ gridColumn: '1/-1' }}><div className="profile-info-label">Bio</div><div className="profile-info-val" style={{ fontStyle: 'italic', color: 'var(--ink-soft)' }}>{profile.bio || '—'}</div></div>
             <div className="profile-info-card" style={{ gridColumn: '1/-1' }}>
-              <div className="profile-info-label">🎯 Hobbies & interests</div>
+              <div className="profile-info-label">Hobbies & interests</div>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 6 }}>
                 {(profile.hobbies || []).length ? (profile.hobbies).map(t => <span key={t} className="profile-tag">{t}</span>) : <span style={{ color: 'var(--ink-muted)', fontSize: 13 }}>—</span>}
               </div>
             </div>
             <div className="profile-info-card" style={{ gridColumn: '1/-1' }}>
-              <div className="profile-info-label">🕐 Preferred hangout times</div>
+              <div className="profile-info-label">Preferred hangout times</div>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 6 }}>
                 {(profile.times || []).length ? (profile.times).map(t => <span key={t} className="profile-tag">{t}</span>) : <span style={{ color: 'var(--ink-muted)', fontSize: 13 }}>—</span>}
               </div>
             </div>
             <div className="profile-info-card" style={{ gridColumn: '1/-1' }}>
-              <div className="profile-info-label">💡 Favourite hangout types</div>
+              <div className="profile-info-label">Favourite hangout types</div>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 6 }}>
                 {(profile.hangtypes || []).length ? (profile.hangtypes).map(t => <span key={t} className="profile-tag">{t}</span>) : <span style={{ color: 'var(--ink-muted)', fontSize: 13 }}>—</span>}
               </div>
             </div>
-            <div className="profile-info-card"><div className="profile-info-label">📞 Social / contact</div><div className="profile-info-val">{profile.social || '—'}</div></div>
-            <div className="profile-info-card"><div className="profile-info-label">🎵 Vibe</div><div className="profile-info-val">{profile.vibe || '—'}</div></div>
+            <div className="profile-info-card"><div className="profile-info-label">Social / contact</div><div className="profile-info-val">{profile.social || '—'}</div></div>
+            <div className="profile-info-card"><div className="profile-info-label">Vibe</div><div className="profile-info-val">{profile.vibe || '—'}</div></div>
           </div>
-          <div className="section-header" style={{ marginTop: 22 }}><div className="section-title">Your social stats</div></div>
+          <div className="section-header" style={{ marginTop: 12 }}><div className="section-title">Your social stats</div></div>
           <div className="stats-row" style={{ gridTemplateColumns: 'repeat(3,1fr)' }}>
-            <div className="stat-card"><div className="stat-value" style={{ color: 'var(--terra)' }}>{friends.length}</div><div className="stat-label">Friends tracked</div></div>
-            <div className="stat-card"><div className="stat-value" style={{ color: 'var(--sage)' }}>{thisYear}</div><div className="stat-label">Hangouts in {yr}</div></div>
-            <div className="stat-card"><div className="stat-value" style={{ color: 'var(--amber)' }}>{bestStreak}</div><div className="stat-label">Best streak 🔥</div></div>
+            <div className="stat-card"><div className="stat-value stat-accent-primary">{friends.length}</div><div className="stat-label">Friends tracked</div></div>
+            <div className="stat-card"><div className="stat-value stat-accent-teal">{thisYear}</div><div className="stat-label">Hangouts in {yr}</div></div>
+            <div className="stat-card"><div className="stat-value stat-accent-plum">{bestStreak}</div><div className="stat-label">Best streak</div></div>
           </div>
         </>
       )}
@@ -137,7 +137,7 @@ export default function Profile({ profile, onUpdateProfile, friends }) {
           </div>
           <div style={{ display: 'flex', gap: 9, paddingTop: 4 }}>
             <button className="btn btn-ghost" onClick={cancelEdit} style={{ flex: 1 }}>Cancel</button>
-            <button className="btn btn-primary" onClick={saveProfile} style={{ flex: 2 }}>Save profile ✓</button>
+            <button className="btn btn-primary" onClick={saveProfile} style={{ flex: 2 }}>Save profile</button>
           </div>
         </div>
       )}
@@ -147,32 +147,32 @@ export default function Profile({ profile, onUpdateProfile, friends }) {
         <div className="modal-overlay" onClick={e => e.target === e.currentTarget && setShowShareModal(false)}>
           <div className="modal" onClick={e => e.stopPropagation()} style={{ maxWidth: 420 }}>
             <div className="modal-header" style={{ justifyContent: 'space-between' }}>
-              <div style={{ fontFamily: 'Fraunces, serif', fontSize: 18, fontWeight: 600 }}>🔗 Share your profile</div>
+              <div className="modal-title">Share your profile</div>
               <button onClick={() => setShowShareModal(false)} style={{ background: 'none', border: 'none', fontSize: 18, cursor: 'pointer', color: 'var(--ink-muted)' }}>✕</button>
             </div>
             <div className="modal-body">
               <p style={{ fontSize: 13, color: 'var(--ink-muted)', marginBottom: 16, lineHeight: 1.5 }}>Send this card to a friend so they know what you're into and when you like to hang out.</p>
               <div className="share-card">
-                <div className="share-avatar-big" style={{ background: profile.color || '#C05A3A' }}>{profile.name[0].toUpperCase()}</div>
+                <div className="share-avatar-big" style={{ background: profile.color || 'var(--primary)' }}>{profile.name[0].toUpperCase()}</div>
                 <div className="share-name">{profile.name}</div>
                 {profile.bio && <div className="share-bio">{profile.bio}</div>}
                 <div className="share-tags">
                   {[...(profile.hobbies || []).slice(0, 4), ...(profile.hangtypes || []).slice(0, 2)].map(t => <span key={t} className="share-tag">{t}</span>)}
                 </div>
-                {profile.location && <div style={{ fontSize: 12, color: 'var(--ink-muted)', marginBottom: 4 }}>📍 {profile.location}</div>}
-                {profile.vibe && <div style={{ fontSize: 12, color: 'var(--ink-muted)' }}>✨ Vibe: {profile.vibe}</div>}
+                {profile.location && <div style={{ fontSize: 12, color: 'var(--ink-muted)', marginBottom: 4 }}>{profile.location}</div>}
+                {profile.vibe && <div style={{ fontSize: 12, color: 'var(--ink-muted)' }}>Vibe: {profile.vibe}</div>}
               </div>
               <div style={{ marginTop: 14 }}>
                 <div className="form-label" style={{ marginBottom: 6 }}>Shareable link</div>
-                <div className="share-url-box" onClick={() => { navigator.clipboard.writeText(buildShareProfileLink(profile)); showToast('Link copied! 🔗'); }}>
+                <div className="share-url-box" onClick={() => { navigator.clipboard.writeText(buildShareProfileLink(profile)); showToast('Link copied.'); }}>
                   {buildShareProfileLink(profile)}
                 </div>
-                <div style={{ fontSize: '11.5px', color: 'var(--ink-muted)', marginTop: 5 }}>⚡ Link encodes your profile — no account needed.</div>
+                <div style={{ fontSize: '11.5px', color: 'var(--ink-muted)', marginTop: 5 }}>Link encodes your profile — no account needed.</div>
               </div>
             </div>
             <div className="modal-footer">
               <button className="btn btn-ghost" onClick={() => setShowShareModal(false)}>Close</button>
-              <button className="btn btn-primary" onClick={() => { navigator.clipboard.writeText(buildShareProfileLink(profile)); showToast('Link copied! 🔗'); }}>📋 Copy link</button>
+              <button className="btn btn-primary" onClick={() => { navigator.clipboard.writeText(buildShareProfileLink(profile)); showToast('Link copied.'); }}>Copy link</button>
             </div>
           </div>
         </div>

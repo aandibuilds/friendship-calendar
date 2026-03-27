@@ -4,7 +4,7 @@ export const metadata = {
   title: 'Friendship Calendar',
   description: 'Stay intentional about the people who matter.',
   viewport: 'width=device-width, initial-scale=1, maximum-scale=1',
-  themeColor: '#F7F3ED',
+  themeColor: '#E6E2F5',
 };
 
 export default function RootLayout({ children }) {

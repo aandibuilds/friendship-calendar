@@ -37,7 +37,7 @@ export default function Calendar({ friends, events }) {
         if (d.getFullYear() === calYear && d.getMonth() === calMonth) {
           const k = d.getDate();
           if (!hmap[k]) hmap[k] = [];
-          hmap[k].push({ isEvent: true, name: ev.name, emoji: ev.emoji, color: '#7A5A8C' });
+          hmap[k].push({ isEvent: true, name: ev.name, emoji: ev.emoji, color: 'var(--plum)' });
         }
       });
     });
@@ -107,11 +107,11 @@ export default function Calendar({ friends, events }) {
         </div>
       </div>
 
-      <div style={{ marginTop: 16 }}>
+      <div style={{ marginTop: 12 }}>
         <div className="section-header"><div className="section-title">Export</div></div>
-        <div style={{ display: 'flex', gap: 9, flexWrap: 'wrap' }}>
-          <button className="btn btn-ghost" onClick={exportICS}>📅 Export .ics (Apple / Outlook)</button>
-          <button className="btn btn-ghost" onClick={exportGCal}>🗓 Open in Google Calendar</button>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          <button type="button" className="btn btn-ghost" onClick={exportICS}>Export .ics (Apple / Outlook)</button>
+          <button type="button" className="btn btn-ghost" onClick={exportGCal}>Open in Google Calendar</button>
         </div>
         <div style={{ fontSize: '11.5px', color: 'var(--ink-muted)', marginTop: 7 }}>Exports all logged hangouts as calendar events.</div>
       </div>

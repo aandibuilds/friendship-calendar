@@ -13,7 +13,7 @@ export default function BarChart({ labels, data, color }) {
     const max = Math.max(...data, 1);
     const pad = { t: 14, b: 24, l: 8, r: 8 };
     const bw = (W - pad.l - pad.r) / labels.length;
-    ctx.font = '500 10.5px DM Sans,sans-serif';
+    ctx.font = '500 10.5px Plus Jakarta Sans,system-ui,sans-serif';
     ctx.textAlign = 'center';
     labels.forEach((l, i) => {
       const x = pad.l + i * bw + bw / 2;

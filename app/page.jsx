@@ -1,7 +1,7 @@
 'use client';
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect } from 'react';
 import { ToastProvider, useToast } from '../lib/toast';
-import { loadData, saveData, initSample, getDaysSince, parseSharedProfile, parseSharedEvent, categoryEmoji } from '../lib/data';
+import { loadData, saveData, initSample, getDaysSince, parseSharedProfile, parseSharedEvent } from '../lib/data';
 import Dashboard from '../components/Dashboard';
 import Friends from '../components/Friends';
 import Calendar from '../components/Calendar';
@@ -12,16 +12,17 @@ import Profile from '../components/Profile';
 import FriendDetailModal from '../components/FriendDetailModal';
 import AddFriendModal from '../components/AddFriendModal';
 import QuietHoursModal from '../components/QuietHoursModal';
+import { NavIcon } from '../components/NavIcons';
 
 const VIEWS = ['dashboard','friends','calendar','reminders','events','review','profile'];
 const NAV = [
-  { id: 'dashboard', icon: '🏠', label: 'Home' },
-  { id: 'friends',   icon: '👥', label: 'Friends' },
-  { id: 'calendar',  icon: '📅', label: 'Calendar' },
-  { id: 'reminders', icon: '🔔', label: 'Reminders' },
-  { id: 'events',    icon: '🎉', label: 'Events' },
-  { id: 'review',    icon: '⭐', label: 'Review' },
-  { id: 'profile',   icon: '👤', label: 'Profile' },
+  { id: 'dashboard', label: 'Home' },
+  { id: 'friends', label: 'Friends' },
+  { id: 'calendar', label: 'Calendar' },
+  { id: 'reminders', label: 'Reminders' },
+  { id: 'events', label: 'Events' },
+  { id: 'review', label: 'Review' },
+  { id: 'profile', label: 'Profile' },
 ];
 
 function AppInner() {
@@ -31,7 +32,7 @@ function AppInner() {
   const [events, setEvents] = useState([]);
   const [proposed, setProposed] = useState([]);
   const [quiet, setQuiet] = useState({ enabled: false, start: '22:00', end: '08:00' });
-  const [profile, setProfile] = useState({ name: '', color: '#C05A3A', location: '', birthday: '', bio: '', hobbies: [], times: [], hangtypes: [], social: '', vibe: '' });
+  const [profile, setProfile] = useState({ name: '', color: '#5B4FFF', location: '', birthday: '', bio: '', hobbies: [], times: [], hangtypes: [], social: '', vibe: '' });
   const [loaded, setLoaded] = useState(false);
   const [openFriendId, setOpenFriendId] = useState(null);
   const [showAddFriend, setShowAddFriend] = useState(false);
@@ -40,27 +41,37 @@ function AppInner() {
   const [sharedProfile, setSharedProfile] = useState(null);
   const [sharedEvent, setSharedEvent] = useState(null);
 
-  // Load from localStorage on mount
+  // Load from localStorage on mount (always leave loading state — corrupted storage / blocked localStorage must not strand the UI)
   useEffect(() => {
-    const data = loadData();
-    const sample = initSample(data.friends, data.events);
-    if (sample) {
-      data.friends = sample.friends;
-      data.events = sample.events;
-      saveData({ friends: sample.friends, events: sample.events });
-    }
-    setFriends(data.friends);
-    setEvents(data.events);
-    setProposed(data.proposed);
-    setQuiet(data.quiet);
-    setProfile(data.profile);
-    setLoaded(true);
+    try {
+      const data = loadData();
+      const sample = initSample(data.friends, data.events);
+      if (sample) {
+        data.friends = sample.friends;
+        data.events = sample.events;
+        saveData({ friends: sample.friends, events: sample.events });
+      }
+      setFriends(Array.isArray(data.friends) ? data.friends : []);
+      setEvents(Array.isArray(data.events) ? data.events : []);
+      setProposed(Array.isArray(data.proposed) ? data.proposed : []);
+      setQuiet(data.quiet && typeof data.quiet === 'object' ? data.quiet : { enabled: false, start: '22:00', end: '08:00' });
+      setProfile(data.profile && typeof data.profile === 'object' ? data.profile : { name: '', color: '#5B4FFF', location: '', birthday: '', bio: '', hobbies: [], times: [], hangtypes: [], social: '', vibe: '' });
 
-    // Check for incoming shared links
-    const sp = parseSharedProfile();
-    if (sp?.name) { setSharedProfile(sp); history.replaceState({}, '', location.pathname); }
-    const se = parseSharedEvent();
-    if (se?.name) { setSharedEvent(se); history.replaceState({}, '', location.pathname); }
+      const sp = parseSharedProfile();
+      if (sp?.name) {
+        setSharedProfile(sp);
+        history.replaceState({}, '', location.pathname);
+      }
+      const se = parseSharedEvent();
+      if (se?.name) {
+        setSharedEvent(se);
+        history.replaceState({}, '', location.pathname);
+      }
+    } catch (e) {
+      console.error('Friendship Calendar: failed to load saved data', e);
+    } finally {
+      setLoaded(true);
+    }
   }, []);
 
   // Persist whenever state changes
@@ -96,20 +107,50 @@ function AppInner() {
     setProposed(prev => [...prev, { id: Date.now(), type: 'proposed', name: ev.name, date: ev.date, time: ev.time, location: ev.location, desc: ev.desc, sourceUrl: ev.sourceUrl, category: ev.category, proposedTo: [], proposedAt: new Date().toISOString() }]);
     setSharedEvent(null);
     setView('events');
-    showToast(`"${ev.name}" saved to your Events! ✦`);
+    showToast(`"${ev.name}" saved to your Events!`);
   }
 
-  if (!loaded) return <div style={{ height: '100dvh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--cream)', fontFamily: 'Fraunces, serif', color: 'var(--ink-muted)', fontSize: 18 }}>✦</div>;
+  if (!loaded) {
+    return (
+      <div
+        className="app-loading"
+        style={{
+          height: '100dvh',
+          minHeight: '100%',
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'center',
+          gap: 12,
+          padding: 24,
+          boxSizing: 'border-box',
+          background: 'var(--cream, #F4F4F8)',
+          fontFamily: 'var(--font-display), Georgia, "Times New Roman", serif',
+          color: 'var(--ink-muted, #767686)',
+          fontSize: 20,
+          letterSpacing: '-0.03em',
+        }}
+      >
+        <span style={{ fontWeight: 600, color: 'var(--ink, #0C0C0F)' }}>Friendship Calendar</span>
+        <span style={{ fontSize: 13, fontFamily: 'var(--font-sans), system-ui, sans-serif', fontWeight: 500, opacity: 0.85 }}>
+          Loading…
+        </span>
+      </div>
+    );
+  }
 
   return (
     <div className="app">
       {/* INCOMING SHARED PROFILE BANNER */}
       {sharedProfile && (
         <div style={{ position: 'fixed', top: 0, left: 0, right: 0, background: 'var(--warm-white)', borderBottom: '1px solid var(--border)', padding: '14px 20px', zIndex: 500, display: 'flex', alignItems: 'center', gap: 12, boxShadow: 'var(--shadow-md)', animation: 'slideUp 0.25s ease' }}>
-          <div style={{ width: 40, height: 40, borderRadius: '50%', background: sharedProfile.color || '#C05A3A', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'Fraunces, serif', fontSize: 16, fontWeight: 600, color: 'white', flexShrink: 0 }}>{sharedProfile.name[0]}</div>
+          <div style={{ width: 40, height: 40, borderRadius: '50%', background: sharedProfile.color || 'var(--primary)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'var(--font-display), Georgia, serif', fontSize: 16, fontWeight: 600, color: 'white', flexShrink: 0 }}>{sharedProfile.name[0]}</div>
           <div style={{ flex: 1 }}>
             <div style={{ fontWeight: 600, fontSize: 14 }}>{sharedProfile.name} shared their profile with you</div>
-            <div style={{ fontSize: 12, color: 'var(--ink-muted)' }}>{sharedProfile.bio || ''}{sharedProfile.location ? ' · 📍 ' + sharedProfile.location : ''}</div>
+            <div style={{ fontSize: 12, color: 'var(--ink-muted)' }}>
+              {sharedProfile.bio || ''}
+              {sharedProfile.location ? ' · ' + sharedProfile.location : ''}
+            </div>
           </div>
           <button className="btn btn-primary btn-sm" onClick={acceptSharedProfile}>Add as friend</button>
           <button onClick={() => setSharedProfile(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 16, color: 'var(--ink-muted)' }}>✕</button>
@@ -119,12 +160,40 @@ function AppInner() {
       {/* INCOMING SHARED EVENT BANNER */}
       {sharedEvent && (
         <div style={{ position: 'fixed', top: 0, left: 0, right: 0, background: 'var(--warm-white)', borderBottom: '1px solid var(--border)', padding: '14px 20px', zIndex: 500, display: 'flex', alignItems: 'center', gap: 12, boxShadow: 'var(--shadow-md)', animation: 'slideUp 0.25s ease' }}>
-          <div style={{ width: 40, height: 40, borderRadius: 10, background: 'var(--plum-pale)', border: '1px solid #D8CFF0', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20, flexShrink: 0 }}>{categoryEmoji(sharedEvent.category)}</div>
+          <div
+            style={{
+              width: 40,
+              height: 40,
+              borderRadius: 10,
+              background: 'var(--plum-pale)',
+              border: '1px solid #D8CFF0',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              fontSize: 13,
+              fontWeight: 600,
+              letterSpacing: '0.08em',
+              textTransform: 'uppercase',
+              flexShrink: 0,
+              color: 'var(--plum)',
+            }}
+          >
+            {(sharedEvent.category || '?').slice(0, 3)}
+          </div>
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ fontWeight: 600, fontSize: 14 }}>{sharedEvent.name}</div>
-            <div style={{ fontSize: 12, color: 'var(--ink-muted)' }}>{sharedEvent.date ? new Date(sharedEvent.date + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' }) : ''}{sharedEvent.location ? ' · 📍 ' + sharedEvent.location : ''}</div>
+            <div style={{ fontSize: 12, color: 'var(--ink-muted)' }}>
+              {sharedEvent.date
+                ? new Date(sharedEvent.date + 'T12:00:00').toLocaleDateString('en-US', {
+                    weekday: 'long',
+                    month: 'long',
+                    day: 'numeric',
+                  })
+                : ''}
+              {sharedEvent.location ? ' · ' + sharedEvent.location : ''}
+            </div>
           </div>
-          <button className="btn btn-sm" onClick={acceptSharedEvent} style={{ background: 'var(--plum)', color: 'white', border: 'none', borderRadius: 99, padding: '6px 14px', fontFamily: 'DM Sans, sans-serif', fontWeight: 600, cursor: 'pointer', flexShrink: 0 }}>Save event</button>
+          <button className="btn btn-sm btn-primary" onClick={acceptSharedEvent} style={{ flexShrink: 0 }}>Save event</button>
           <button onClick={() => setSharedEvent(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 16, color: 'var(--ink-muted)', flexShrink: 0 }}>✕</button>
         </div>
       )}
@@ -132,15 +201,34 @@ function AppInner() {
       {/* TOP BAR */}
       <header className="topbar">
         <div className="logo">
-          <div className="logo-icon">🗓</div>
+          <div className="logo-icon">FC</div>
           <span>Friendship</span>
         </div>
         <div className="topbar-right">
           <div className={`topbar-pill ${quiet.enabled ? 'active' : ''}`} onClick={() => setShowQuiet(true)}>
-            🌙 <span>{quiet.enabled ? `${quiet.start}–${quiet.end}` : 'Quiet hours'}</span>
+            <span
+              style={{
+                width: 7,
+                height: 7,
+                borderRadius: '999px',
+                background: quiet.enabled ? 'var(--primary)' : 'var(--border-strong)',
+                display: 'inline-block',
+                marginRight: 6,
+              }}
+            />
+            <span>{quiet.enabled ? `${quiet.start}–${quiet.end}` : 'Quiet hours'}</span>
           </div>
           <div className="inbox-btn" onClick={() => setView('events')} title="Pending invites">
-            📬
+            <span
+              style={{
+                fontSize: 11,
+                fontWeight: 600,
+                letterSpacing: '.08em',
+                textTransform: 'uppercase',
+              }}
+            >
+              Invites
+            </span>
             <div className="inbox-dot" style={{ display: pendingCount > 0 ? 'block' : 'none' }} />
           </div>
           <button className="add-btn" onClick={() => { setAddFriendPrefill(null); setShowAddFriend(true); }}>＋ Add friend</button>
@@ -159,14 +247,28 @@ function AppInner() {
       </main>
 
       {/* BOTTOM NAV */}
-      <nav className="bottom-nav">
+      <nav className="bottom-nav" aria-label="Main">
         {NAV.map(n => (
-          <div key={n.id} className={`nav-item ${view === n.id ? 'active' : ''}`} onClick={() => setView(n.id)}>
-            <span className="nav-icon" data-badge={n.id === 'reminders' ? overdueCount : undefined}>
-              {n.id === 'profile' && profile.name ? profile.name[0].toUpperCase() : n.icon}
+          <button
+            key={n.id}
+            type="button"
+            className={`nav-item ${view === n.id ? 'active' : ''}`}
+            onClick={() => setView(n.id)}
+            aria-label={n.label}
+            aria-current={view === n.id ? 'page' : undefined}
+          >
+            <span
+              className="nav-icon"
+              data-badge={n.id === 'reminders' && overdueCount > 0 ? String(overdueCount > 9 ? '9+' : overdueCount) : undefined}
+            >
+              {n.id === 'profile' && profile.name ? (
+                <span className="nav-icon-initial">{profile.name[0].toUpperCase()}</span>
+              ) : (
+                <NavIcon id={n.id} />
+              )}
             </span>
-            <span>{n.label}</span>
-          </div>
+            <span className="nav-label">{n.label}</span>
+          </button>
         ))}
       </nav>
 

@@ -20,12 +20,12 @@ export default function Review({ friends }) {
 
   return (
     <div className="view">
-      <div className="page-title">Year in Review ✨</div>
+      <div className="page-title">Year in review</div>
       <div className="page-sub">A look back at your social year.</div>
       <div className="review-grid">
         <div className="review-card"><div className="review-val">{total}</div><div className="review-lbl">Total hangouts in {yr}</div></div>
         <div className="review-card"><div className="review-val">{months.size}</div><div className="review-lbl">Active months</div></div>
-        <div className="review-card"><div className="review-val">{bestStreak}</div><div className="review-lbl">Longest streak 🔥</div></div>
+        <div className="review-card"><div className="review-val">{bestStreak}</div><div className="review-lbl">Longest streak</div></div>
       </div>
       <div className="section-header"><div className="section-title">Top friends this year</div></div>
       <div className="reminders-list">
@@ -37,7 +37,7 @@ export default function Review({ friends }) {
                   <div className="reminder-name">{f.name}</div>
                   <div className="reminder-msg">{cnt} hangout{cnt !== 1 ? 's' : ''} in {yr}</div>
                 </div>
-                {getStreak(f) >= 2 && <div className="streak-pill">🔥 {getStreak(f)}mo</div>}
+                {getStreak(f) >= 2 && <div className="streak-pill">{getStreak(f)} mo streak</div>}
               </div>
             ))
           : <div style={{ color: 'var(--ink-muted)', fontSize: 13, padding: '8px 0' }}>No hangouts this year yet.</div>
