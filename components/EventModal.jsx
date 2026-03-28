@@ -12,6 +12,7 @@ export default function EventModal({ friends, onClose, onSave }) {
   const [evtName, setEvtName] = useState('');
   const [evtDesc, setEvtDesc] = useState('');
   const [dates, setDates] = useState(['', '', '']);
+  const [voteDeadline, setVoteDeadline] = useState('');
   const [soloActivity, setSoloActivity] = useState('');
   const [soloLocation, setSoloLocation] = useState('');
   const [soloDate, setSoloDate] = useState('');
@@ -48,7 +49,7 @@ export default function EventModal({ friends, onClose, onSave }) {
     const dateOnly = soloDate.split('T')[0];
     const isPlanned = new Date(soloDate) > new Date();
     if (isPlanned) {
-      const ev = { id: Date.now(), type: '1on1', name: label, desc: soloLocation, emoji: '◆', dates: [soloDate], invitees: [f.id], rsvps: {}, votes: [[]], confirmed: soloDate };
+      const ev = { id: Date.now(), type: '1on1', name: label, desc: soloLocation, emoji: '◆', dates: [soloDate], invitees: [f.id], rsvps: { me: 'yes' }, votes: [[]], confirmed: soloDate };
       onSave({ type: 'event', event: ev, friendUpdates: [{ ...f, invites: [...(f.invites || []), { eventId: ev.id, eventName: label, date: soloDate, status: 'pending' }] }] });
       showToast(`Plan created with ${f.name}.`);
     } else {
@@ -62,7 +63,8 @@ export default function EventModal({ friends, onClose, onSave }) {
   function saveGroup() {
     const validDates = dates.filter(Boolean);
     const ids = [...invitees];
-    const ev = { id: Date.now(), type: 'group', name: evtName.trim(), desc: evtDesc.trim(), emoji, dates: validDates, invitees: ids, rsvps: {}, votes: validDates.map(() => []), confirmed: null };
+    // Creator auto-attends their own event
+    const ev = { id: Date.now(), type: 'group', name: evtName.trim(), desc: evtDesc.trim(), emoji, dates: validDates, invitees: ids, rsvps: { me: 'yes' }, votes: validDates.map(() => []), confirmed: null, voteDeadline: voteDeadline || null };
     const friendUpdates = ids.map(id => {
       const f = friends.find(x => x.id === id);
       return { ...f, invites: [...(f.invites || []), { eventId: ev.id, eventName: ev.name, date: validDates[0] || null, status: 'pending' }] };
@@ -124,6 +126,10 @@ export default function EventModal({ friends, onClose, onSave }) {
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
                   {dates.map((d, i) => <input key={i} type="datetime-local" className="input-full" value={d} onChange={e => setDates(ds => ds.map((x, j) => j === i ? e.target.value : x))} />)}
                 </div>
+              </div>
+              <div className="form-group">
+                <label className="form-label">Voting deadline <span style={{ color: 'var(--ink-muted)', fontWeight: 400 }}>(optional — top vote wins automatically)</span></label>
+                <input type="date" className="input-full" value={voteDeadline} onChange={e => setVoteDeadline(e.target.value)} min={new Date().toISOString().split('T')[0]} />
               </div>
             </>
           )}

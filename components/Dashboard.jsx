@@ -1,11 +1,9 @@
 'use client';
-import { useState, useMemo } from 'react';
+import { useMemo } from 'react';
 import FriendCard from './FriendCard';
-import BarChart from './BarChart';
 import { getHealthScore, getDaysSince, getStreak, fmtDate } from '../lib/data';
 
 export default function Dashboard({ friends, onOpenFriend, onShowView }) {
-  const [range, setRange] = useState(6);
   const hr = new Date().getHours();
   const greeting = hr < 12 ? 'Good morning' : hr < 17 ? 'Good afternoon' : 'Good evening';
 
@@ -31,18 +29,6 @@ export default function Dashboard({ friends, onOpenFriend, onShowView }) {
     return all.sort((a, b) => new Date(b.date) - new Date(a.date)).slice(0, 5);
   }, [friends]);
 
-  const trendData = useMemo(() => {
-    const labels = [], data = [];
-    const now = new Date();
-    for (let i = range - 1; i >= 0; i--) {
-      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
-      const key = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');
-      labels.push(d.toLocaleDateString('en-US', { month: 'short', year: '2-digit' }));
-      let c = 0; friends.forEach(f => (f.hangouts || []).forEach(h => { if (h.date.startsWith(key)) c++; }));
-      data.push(c);
-    }
-    return { labels, data };
-  }, [friends, range]);
 
   return (
     <div className="view">
@@ -84,20 +70,6 @@ export default function Dashboard({ friends, onOpenFriend, onShowView }) {
           </div>
           <div className="stat-value stat-accent-plum">{stats.st}</div>
           <div className="stat-label">Active</div>
-        </div>
-      </div>
-
-      <div className="trend-wrap">
-        <div className="section-header" style={{ marginBottom: 0 }}>
-          <div className="section-title">Hangouts over time</div>
-          <select className="input" value={range} onChange={e => setRange(+e.target.value)}
-            style={{ width: 'auto', padding: '4px 10px', fontSize: 12, borderRadius: 99 }}>
-            <option value={6}>6 months</option>
-            <option value={12}>12 months</option>
-          </select>
-        </div>
-        <div className="trend-canvas-wrap">
-          <BarChart labels={trendData.labels} data={trendData.data} color="#5B4FFF" />
         </div>
       </div>
 

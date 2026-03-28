@@ -42,11 +42,11 @@ export function NavIcon({ id }) {
           <path d="M16 2v4M8 2v4M3 10h18" />
         </S>
       );
-    case 'reminders':
+    case 'invites':
       return (
         <S>
-          <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
-          <path d="M13.73 21a2 2 0 0 1-3.46 0" />
+          <rect x="2" y="4" width="20" height="16" rx="2" />
+          <polyline points="2 4 12 13 22 4" />
         </S>
       );
     case 'events':

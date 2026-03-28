@@ -1,7 +1,6 @@
 'use client';
 import { useState } from 'react';
 import { useToast } from '../lib/toast';
-import { callClaude } from '../lib/data';
 
 const CATEGORIES = ['Music', 'Food & drink', 'Art', 'Performance', 'Fitness', 'Outdoors', 'Gaming', 'Nightlife', 'Learning'];
 
@@ -12,8 +11,6 @@ export default function ProposeModal({ friends, onClose, onSave }) {
   const [url, setUrl] = useState('');
   const [fetchStatus, setFetchStatus] = useState('');
   const [fetchState, setFetchState] = useState(''); // '' | 'loading' | 'success' | 'error'
-  const [imgBase64, setImgBase64] = useState(null);
-  const [imgType, setImgType] = useState(null);
   const [imgFetchState, setImgFetchState] = useState('');
   const [imgPreview, setImgPreview] = useState(null);
   const [autofillMsg, setAutofillMsg] = useState('');
@@ -44,31 +41,30 @@ export default function ProposeModal({ friends, onClose, onSave }) {
   async function fetchFromUrl() {
     if (!url.trim()) { showToast('Please enter a URL'); return; }
     setFetchState('loading'); setFetchStatus('Fetching event details…');
-    const prompt = `You are a web scraping assistant. A user pasted this URL: "${url}"\n\nBased on the URL and domain info (Eventbrite, RA, Posh, Facebook Events, Meetup, etc.), extract or intelligently guess the likely event details.\n\nReturn ONLY a valid JSON object with these exact keys:\n{\n  "name": "event name",\n  "date": "YYYY-MM-DD or empty",\n  "time": "HH:MM (24h) or empty",\n  "location": "venue/city or empty",\n  "description": "1-2 sentence description or empty",\n  "category": "one of: Music, Food & drink, Art, Performance, Fitness, Outdoors, Gaming, Nightlife, Learning, or empty"\n}\nOnly return the JSON object, nothing else.`;
     try {
-      const text = await callClaude(prompt);
-      const data = JSON.parse(text.replace(/```json|```/g, '').trim());
-      autofill({ ...data, sourceUrl: url }, `Details fetched from ${new URL(url).hostname}`);
-      setFetchState('success'); setFetchStatus('Event details loaded.');
+      const res = await fetch('/api/fetch-event', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url: url.trim() }),
+      });
+      if (!res.ok) throw new Error('fetch failed');
+      const data = await res.json();
+      if (data.error) throw new Error(data.error);
+      const filled = Object.values({ n: data.name, d: data.date, l: data.location }).some(Boolean);
+      autofill(data, filled ? `Details pulled from ${new URL(url).hostname} — review carefully` : '');
+      setFetchState(filled ? 'success' : 'error');
+      setFetchStatus(filled ? 'Details loaded — review and edit before saving.' : 'Couldn\'t extract details — fill in manually on the next step.');
     } catch {
-      setFetchState('error'); setFetchStatus('Couldn\'t auto-fetch — fill in manually on the next step.');
+      setFetchState('error'); setFetchStatus('Couldn\'t reach this URL — fill in manually on the next step.');
     }
   }
 
-  async function handleImageUpload(e) {
+  function handleImageUpload(e) {
     const file = e.target.files[0]; if (!file) return;
     const reader = new FileReader();
-    reader.onload = async (ev) => {
-      const b64 = ev.target.result.split(',')[1];
-      setImgBase64(b64); setImgType(file.type); setImgPreview(ev.target.result);
-      setImgFetchState('loading');
-      const prompt = `Extract event details from this image (flyer, screenshot, poster, etc.).\nReturn ONLY a valid JSON object:\n{\n  "name": "event name",\n  "date": "YYYY-MM-DD or empty",\n  "time": "HH:MM (24h) or empty",\n  "location": "venue/city or empty",\n  "description": "1-2 sentence description or empty",\n  "category": "one of: Music, Food & drink, Art, Performance, Fitness, Outdoors, Gaming, Nightlife, Learning, or empty"\n}\nOnly return the JSON, nothing else.`;
-      try {
-        const text = await callClaude(prompt, { type: file.type, data: b64 });
-        const data = JSON.parse(text.replace(/```json|```/g, '').trim());
-        autofill(data, 'Details extracted from your screenshot');
-        setImgFetchState('success');
-      } catch { setImgFetchState('error'); }
+    reader.onload = (ev) => {
+      setImgPreview(ev.target.result);
+      setImgFetchState('ready');
     };
     reader.readAsDataURL(file);
   }
@@ -112,7 +108,7 @@ export default function ProposeModal({ friends, onClose, onSave }) {
         <div className="modal-header" style={{ justifyContent: 'space-between', alignItems: 'center' }}>
           <div>
             <div className="modal-title">
-              {['Propose an event','Event details','Loop in friends'][step - 1]}
+              {['Share a find','Event details','Loop in friends'][step - 1]}
             </div>
             <div style={{ fontSize: '11.5px', color: 'var(--ink-muted)', marginTop: 3 }}>
               {['Step 1 of 3 — Source','Step 2 of 3 — Details','Step 3 of 3 — Friends'][step - 1]}
@@ -129,8 +125,8 @@ export default function ProposeModal({ friends, onClose, onSave }) {
           {step === 1 && (
             <>
               <p style={{ fontSize: '13.5px', color: 'var(--ink-muted)', marginBottom: 12, lineHeight: 1.55 }}>Saw something on Instagram, Eventbrite, or anywhere else? Capture it here before you forget.</p>
-              {[['url','URL','Paste a URL','Drop in an Eventbrite, RA, Posh, Facebook Events, or any link — AI will pull the details'],
-                ['image','IMG','Upload a screenshot','Screenshot from Instagram, a flyer, or anything visual — AI reads the details'],
+              {[['url','URL','Paste a URL','Drop in an Eventbrite, RA, Posh, Facebook Events, or any link — we\'ll pull what we can'],
+                ['image','IMG','Upload a screenshot','Screenshot from Instagram, a flyer, or anything visual — keep it as reference while you fill in the details'],
                 ['manual','TYPE','Enter manually','Type in the event name, date, and location yourself']
               ].map(([t, icon, label, sub]) => (
                 <div key={t} className={`source-option ${source === t ? 'selected' : ''}`} onClick={() => setSource(t)}>
@@ -164,9 +160,9 @@ export default function ProposeModal({ friends, onClose, onSave }) {
                   ) : (
                     <img src={imgPreview} className="image-preview" alt="preview" />
                   )}
-                  {imgFetchState && (
-                    <div className={`fetch-status ${imgFetchState}`} style={{ marginTop: 6 }}>
-                      {imgFetchState === 'loading' ? 'Reading event details from image…' : imgFetchState === 'success' ? 'Event details extracted.' : 'Couldn\'t read image — fill in manually on the next step.'}
+                  {imgFetchState === 'ready' && (
+                    <div className="fetch-status" style={{ marginTop: 6, color: 'var(--ink-muted)', fontSize: '12.5px' }}>
+                      Image saved as reference — fill in the details on the next step.
                     </div>
                   )}
                 </div>
@@ -178,8 +174,18 @@ export default function ProposeModal({ friends, onClose, onSave }) {
           {step === 2 && (
             <>
               {autofillMsg && (
-                <div style={{ background: 'var(--plum-pale)', border: '1px solid rgba(124, 58, 237, 0.22)', borderRadius: 'var(--radius-xs)', padding: '9px 12px', marginBottom: 12, fontSize: '12.5px', color: 'var(--plum)', display: 'flex', alignItems: 'center', gap: 7 }}>
-                  <span>{autofillMsg} — check and edit as needed.</span>
+                <div style={{ background: '#FFF8E1', border: '1px solid #F9A825', borderRadius: 'var(--radius-xs)', padding: '10px 13px', marginBottom: 14, fontSize: '12.5px', color: '#7A5C00', display: 'flex', alignItems: 'flex-start', gap: 8 }}>
+                  <span style={{ fontSize: 14, flexShrink: 0, marginTop: 1 }}>⚠</span>
+                  <div>
+                    <div style={{ fontWeight: 600, marginBottom: 2 }}>Review before saving</div>
+                    <div>{autofillMsg}. Details may be incomplete or incorrect — please verify every field below before continuing.</div>
+                  </div>
+                </div>
+              )}
+              {source === 'image' && !autofillMsg && (
+                <div style={{ background: '#F3F4F6', border: '1px solid #D1D5DB', borderRadius: 'var(--radius-xs)', padding: '10px 13px', marginBottom: 14, fontSize: '12.5px', color: 'var(--ink-muted)', display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <span style={{ fontSize: 13 }}>🖼</span>
+                  <span>Your image is saved for reference — fill in the details below.</span>
                 </div>
               )}
               <div className="form-group"><label className="form-label">Event name *</label><input className="input-full" value={name} onChange={e => setName(e.target.value)} placeholder="e.g. Peggy Gou at Printworks" autoFocus /></div>
@@ -229,7 +235,7 @@ export default function ProposeModal({ friends, onClose, onSave }) {
             <button className="btn btn-ghost" onClick={onClose}>Cancel</button>
             <button type="button" className="btn btn-primary btn-sm" onClick={nextStep}
               style={{ borderRadius: 99, padding: '8px 18px' }}>
-              {step === 3 ? 'Propose & share' : 'Next →'}
+              {step === 3 ? 'Share with friends ✓' : 'Next →'}
             </button>
           </div>
         </div>

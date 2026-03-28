@@ -5,7 +5,7 @@ import { loadData, saveData, initSample, getDaysSince, parseSharedProfile, parse
 import Dashboard from '../components/Dashboard';
 import Friends from '../components/Friends';
 import Calendar from '../components/Calendar';
-import Reminders from '../components/Reminders';
+import Invites from '../components/Invites';
 import Events from '../components/Events';
 import Review from '../components/Review';
 import Profile from '../components/Profile';
@@ -14,12 +14,12 @@ import AddFriendModal from '../components/AddFriendModal';
 import QuietHoursModal from '../components/QuietHoursModal';
 import { NavIcon } from '../components/NavIcons';
 
-const VIEWS = ['dashboard','friends','calendar','reminders','events','review','profile'];
+const VIEWS = ['dashboard','friends','calendar','invites','events','review','profile'];
 const NAV = [
   { id: 'dashboard', label: 'Home' },
   { id: 'friends', label: 'Friends' },
   { id: 'calendar', label: 'Calendar' },
-  { id: 'reminders', label: 'Reminders' },
+  { id: 'invites', label: 'Invites' },
   { id: 'events', label: 'Events' },
   { id: 'review', label: 'Review' },
   { id: 'profile', label: 'Profile' },
@@ -51,7 +51,19 @@ function AppInner() {
         data.events = sample.events;
         saveData({ friends: sample.friends, events: sample.events });
       }
-      setFriends(Array.isArray(data.friends) ? data.friends : []);
+      // Migrate old earthy-tone colors from v2 to the current purple scheme
+      const COLOR_MIGRATION = {
+        '#C05A3A': '#5B4FFF',
+        '#5A8C6A': '#14B8A6',
+        '#7A5A8C': '#D946EF',
+        '#7B8FA1': '#7C3AED',
+        '#B85C6E': '#FB7185',
+      };
+      const migratedFriends = (Array.isArray(data.friends) ? data.friends : []).map(f => ({
+        ...f,
+        color: COLOR_MIGRATION[f.color] || f.color,
+      }));
+      setFriends(migratedFriends);
       setEvents(Array.isArray(data.events) ? data.events : []);
       setProposed(Array.isArray(data.proposed) ? data.proposed : []);
       setQuiet(data.quiet && typeof data.quiet === 'object' ? data.quiet : { enabled: false, start: '22:00', end: '08:00' });
@@ -81,7 +93,7 @@ function AppInner() {
   }, [friends, events, proposed, quiet, profile, loaded]);
 
   const overdueCount = friends.filter(f => { const d = getDaysSince(f); return d === null || d > (f.cadence || 30); }).length;
-  const pendingCount = friends.reduce((s, f) => s + (f.invites || []).filter(i => i.status === 'pending').length, 0);
+  const pendingCount = events.filter(ev => !ev.rsvps?.me).length;
   const openFriend = friends.find(f => f.id === openFriendId) || null;
 
   function updateFriends(newFriends) { setFriends(newFriends); }
@@ -218,19 +230,6 @@ function AppInner() {
             />
             <span>{quiet.enabled ? `${quiet.start}–${quiet.end}` : 'Quiet hours'}</span>
           </div>
-          <div className="inbox-btn" onClick={() => setView('events')} title="Pending invites">
-            <span
-              style={{
-                fontSize: 11,
-                fontWeight: 600,
-                letterSpacing: '.08em',
-                textTransform: 'uppercase',
-              }}
-            >
-              Invites
-            </span>
-            <div className="inbox-dot" style={{ display: pendingCount > 0 ? 'block' : 'none' }} />
-          </div>
           <button className="add-btn" onClick={() => { setAddFriendPrefill(null); setShowAddFriend(true); }}>＋ Add friend</button>
         </div>
       </header>
@@ -240,7 +239,7 @@ function AppInner() {
         {view === 'dashboard'  && <Dashboard friends={friends} onOpenFriend={setOpenFriendId} onShowView={setView} />}
         {view === 'friends'    && <Friends friends={friends} onOpenFriend={setOpenFriendId} />}
         {view === 'calendar'   && <Calendar friends={friends} events={events} />}
-        {view === 'reminders'  && <Reminders friends={friends} quiet={quiet} onOpenFriend={setOpenFriendId} onUpdateFriends={updateFriends} />}
+        {view === 'invites'    && <Invites friends={friends} events={events} onUpdateAll={handleEventsUpdate} />}
         {view === 'events'     && <Events friends={friends} events={events} proposed={proposed} onUpdateAll={handleEventsUpdate} />}
         {view === 'review'     && <Review friends={friends} />}
         {view === 'profile'    && <Profile profile={profile} onUpdateProfile={updateProfile} friends={friends} />}
@@ -259,7 +258,7 @@ function AppInner() {
           >
             <span
               className="nav-icon"
-              data-badge={n.id === 'reminders' && overdueCount > 0 ? String(overdueCount > 9 ? '9+' : overdueCount) : undefined}
+              data-badge={n.id === 'invites' && pendingCount > 0 ? String(pendingCount > 9 ? '9+' : pendingCount) : undefined}
             >
               {n.id === 'profile' && profile.name ? (
                 <span className="nav-icon-initial">{profile.name[0].toUpperCase()}</span>

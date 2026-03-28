@@ -1,5 +1,5 @@
 'use client';
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import EventModal from './EventModal';
 import ProposeModal from './ProposeModal';
 import { fmtDT, fmtTime, buildProposeShareLink, categoryEmoji } from '../lib/data';
@@ -9,6 +9,48 @@ export default function Events({ friends, events, proposed, onUpdateAll }) {
   const showToast = useToast();
   const [showEventModal, setShowEventModal] = useState(false);
   const [showProposeModal, setShowProposeModal] = useState(false);
+
+  // Auto-confirm events whose voting deadline has passed
+  const confirmedRef = useRef(new Set());
+  useEffect(() => {
+    const now = new Date();
+    const toConfirm = events.filter(ev =>
+      ev.voteDeadline &&
+      new Date(ev.voteDeadline + 'T23:59:59') < now &&
+      !ev.confirmed &&
+      (ev.dates || []).length > 1 &&
+      !confirmedRef.current.has(ev.id)
+    );
+    if (!toConfirm.length) return;
+
+    let newEvents = [...events];
+    let newFriends = [...friends];
+
+    toConfirm.forEach(ev => {
+      confirmedRef.current.add(ev.id);
+      // Pick date with most votes; tie goes to earliest date
+      const votes = ev.votes || ev.dates.map(() => []);
+      let winnerIdx = 0;
+      votes.forEach((v, i) => {
+        const isBetter = v.length > votes[winnerIdx].length ||
+          (v.length === votes[winnerIdx].length && new Date(ev.dates[i]) < new Date(ev.dates[winnerIdx]));
+        if (isBetter) winnerIdx = i;
+      });
+      const confirmedDate = ev.dates[winnerIdx];
+
+      newEvents = newEvents.map(e => e.id === ev.id ? { ...e, confirmed: confirmedDate } : e);
+
+      // Update the confirmed date on each invited friend's invite record
+      newFriends = newFriends.map(f => {
+        if (!(ev.invitees || []).includes(f.id)) return f;
+        return { ...f, invites: (f.invites || []).map(inv => inv.eventId === ev.id ? { ...inv, date: confirmedDate } : inv) };
+      });
+
+      showToast(`"${ev.name}" — date confirmed by vote! 🎉`);
+    });
+
+    onUpdateAll({ events: newEvents, friends: newFriends });
+  }, [events]);
 
   function handleEventSave({ type, event, friendUpdates }) {
     let newEvents = events, newFriends = friends;
@@ -72,28 +114,18 @@ export default function Events({ friends, events, proposed, onUpdateAll }) {
     onUpdateAll({ events: updated });
   }
 
-  function respondInvite(friendId, eventId, status) {
-    const f = friends.find(x => x.id === friendId); if (!f) return;
-    const updatedF = { ...f, invites: (f.invites || []).map(i => i.eventId === eventId ? { ...i, status } : i) };
-    const updatedE = events.map(e => e.id !== eventId ? e : { ...e, rsvps: { ...(e.rsvps || {}), [String(friendId)]: status === 'accepted' ? 'yes' : 'no' } });
-    onUpdateAll({ friends: friends.map(f2 => f2.id === friendId ? updatedF : f2), events: updatedE });
-    showToast(status === 'accepted' ? 'Accepted.' : 'Declined.');
-  }
-
   const today = new Date(); today.setHours(0, 0, 0, 0);
   const activeProposed = proposed.filter(ev => !ev.date || new Date(ev.date + 'T12:00:00') >= today);
-  const allPending = [];
-  friends.forEach(f => (f.invites || []).filter(i => i.status === 'pending').forEach(inv => allPending.push({ ...inv, friend: f })));
 
   return (
     <div className="view">
       <div className="page-title">Events</div>
-      <div className="page-sub">Group hangouts, 1-on-1 plans, and pending invites.</div>
+      <div className="page-sub">Group hangouts, 1-on-1 plans, and proposed events.</div>
 
       <div style={{ marginBottom: 10, display: 'flex', gap: 6, flexWrap: 'wrap' }}>
         <button type="button" className="btn btn-primary" onClick={() => setShowEventModal(true)}>Create event</button>
         <button type="button" className="btn btn-plum-outline btn-sm" onClick={() => setShowProposeModal(true)}>
-          Propose event
+          Share a find
         </button>
       </div>
 
@@ -101,7 +133,7 @@ export default function Events({ friends, events, proposed, onUpdateAll }) {
       {activeProposed.length > 0 && (
         <div style={{ marginBottom: 10 }}>
           <div className="section-header">
-            <div className="section-title">Proposed <span style={{ fontSize: 12, color: 'var(--ink-muted)', fontWeight: 500 }}>({activeProposed.length})</span></div>
+            <div className="section-title">Shared finds <span style={{ fontSize: 12, color: 'var(--ink-muted)', fontWeight: 500 }}>({activeProposed.length})</span></div>
             <span className="section-link" onClick={clearPastProposed}>Clear past</span>
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
@@ -119,7 +151,7 @@ export default function Events({ friends, events, proposed, onUpdateAll }) {
                     <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10, flexWrap: 'wrap', marginBottom: 8 }}>
                       <div style={{ flex: 1, minWidth: 0 }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 7, flexWrap: 'wrap', marginBottom: 4 }}>
-                          <span className="propose-badge">Proposed</span>
+                          <span className="propose-badge">Shared find</span>
                           {ev.category && <span style={{ fontSize: 10, background: 'var(--plum-pale)', border: '1px solid rgba(124, 58, 237, 0.2)', color: 'var(--plum)', padding: '2px 8px', borderRadius: 99, fontWeight: 600 }}>{ev.category}</span>}
                           {countdownText && <span className={`countdown-pill ${countdownClass}`}>{countdownText}</span>}
                         </div>
@@ -134,7 +166,7 @@ export default function Events({ friends, events, proposed, onUpdateAll }) {
                     </div>
                     {proposedFriends.length > 0 && (
                       <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 9, flexWrap: 'wrap' }}>
-                        <span style={{ fontSize: 11, color: 'var(--ink-muted)' }}>Proposed to:</span>
+                        <span style={{ fontSize: 11, color: 'var(--ink-muted)' }}>Shared with:</span>
                         {proposedFriends.map(f => (
                           <div key={f.id} style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 12, fontWeight: 500 }}>
                             <div style={{ width: 20, height: 20, borderRadius: '50%', background: f.color, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 9, color: 'white', fontWeight: 700 }}>{f.name[0]}</div>
@@ -152,28 +184,6 @@ export default function Events({ friends, events, proposed, onUpdateAll }) {
                 </div>
               );
             })}
-          </div>
-        </div>
-      )}
-
-      {/* PENDING INVITES */}
-      {allPending.length > 0 && (
-        <div style={{ marginBottom: 10 }}>
-          <div className="section-header"><div className="section-title">Pending invites ({allPending.length})</div></div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-            {allPending.map((inv, i) => (
-              <div key={i} className="reminder-item moderate" style={{ borderLeft: '3px solid var(--primary)' }}>
-                <div className="reminder-avatar" style={{ background: inv.friend.color }}>{inv.friend.name[0]}</div>
-                <div className="reminder-info">
-                  <div className="reminder-name">{inv.friend.name}</div>
-                  <div className="reminder-msg">Invited to: <strong>{inv.eventName}</strong>{inv.date ? ' · ' + fmtDT(inv.date) : ''}</div>
-                </div>
-                <div style={{ display: 'flex', gap: 6 }}>
-                  <button type="button" className="btn btn-primary btn-sm" onClick={() => respondInvite(inv.friend.id, inv.eventId, 'accepted')}>Accept</button>
-                  <button type="button" className="btn btn-ghost btn-sm" onClick={() => respondInvite(inv.friend.id, inv.eventId, 'declined')}>Decline</button>
-                </div>
-              </div>
-            ))}
           </div>
         </div>
       )}
@@ -211,25 +221,50 @@ export default function Events({ friends, events, proposed, onUpdateAll }) {
                 </div>
               )}
 
-              {isGroup && (ev.dates || []).length > 1 && (
-                <>
-                  <div style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: '.08em', color: 'var(--plum)', fontWeight: 700, margin: '8px 0 6px' }}>Availability poll</div>
-                  {(ev.dates || []).map((d, i) => {
-                    const vc = ((ev.votes && ev.votes[i]) || []).length;
-                    const mx = Math.max((ev.invitees || []).length, 1);
-                    const pct = Math.round(vc / mx * 100);
-                    const voted = ((ev.votes && ev.votes[i]) || []).includes('me');
-                    return (
-                      <div key={i} className={`avail-option ${voted ? 'voted' : ''}`} onClick={() => voteDate(ev.id, i)}>
-                        <span style={{ fontSize: '12.5px' }}>{fmtDT(d)}</span>
-                        <span className="avail-votes">{vc} vote{vc !== 1 ? 's' : ''}</span>
-                        <div style={{ width: '100%' }}><div className="avail-bar-wrap"><div className="avail-bar" style={{ width: `${pct}%` }} /></div></div>
-                      </div>
-                    );
-                  })}
-                </>
+              {/* Confirmed date banner */}
+              {isGroup && ev.confirmed && (
+                <div style={{ background: 'rgba(20,184,166,0.12)', border: '1px solid rgba(20,184,166,0.3)', borderRadius: 10, padding: '8px 12px', margin: '8px 0', display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <span style={{ fontSize: 14 }}>✓</span>
+                  <div>
+                    <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--health-strong)', textTransform: 'uppercase', letterSpacing: '.06em' }}>Date confirmed</div>
+                    <div style={{ fontSize: 13, fontWeight: 600 }}>{fmtDT(ev.confirmed)}</div>
+                  </div>
+                </div>
               )}
-              {isGroup && (ev.dates || []).length === 1 && ev.dates[0] && (
+
+              {/* Poll — only shown when date not yet confirmed */}
+              {isGroup && !ev.confirmed && (ev.dates || []).length > 1 && (() => {
+                const deadlineDate = ev.voteDeadline ? new Date(ev.voteDeadline + 'T23:59:59') : null;
+                const daysLeft = deadlineDate ? Math.ceil((deadlineDate - new Date()) / 86400000) : null;
+                const deadlinePassed = daysLeft !== null && daysLeft < 0;
+                return (
+                  <>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', margin: '8px 0 6px' }}>
+                      <div style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: '.08em', color: 'var(--plum)', fontWeight: 700 }}>Availability poll</div>
+                      {deadlineDate && (
+                        <div style={{ fontSize: 10, fontWeight: 600, padding: '2px 8px', borderRadius: 99, background: deadlinePassed ? 'var(--health-low-bg)' : daysLeft <= 2 ? 'rgba(251,113,133,0.12)' : 'var(--plum-pale)', color: deadlinePassed ? 'var(--health-low)' : daysLeft <= 2 ? 'var(--health-low)' : 'var(--plum)' }}>
+                          {deadlinePassed ? 'Voting closed' : daysLeft === 0 ? 'Closes today' : daysLeft === 1 ? '1 day left' : `${daysLeft} days left`}
+                        </div>
+                      )}
+                    </div>
+                    {(ev.dates || []).map((d, i) => {
+                      const vc = ((ev.votes && ev.votes[i]) || []).length;
+                      const mx = Math.max((ev.invitees || []).length, 1);
+                      const pct = Math.round(vc / mx * 100);
+                      const voted = ((ev.votes && ev.votes[i]) || []).includes('me');
+                      return (
+                        <div key={i} className={`avail-option ${voted ? 'voted' : ''}`} onClick={() => !deadlinePassed && voteDate(ev.id, i)} style={{ cursor: deadlinePassed ? 'default' : 'pointer', opacity: deadlinePassed ? 0.7 : 1 }}>
+                          <span style={{ fontSize: '12.5px' }}>{fmtDT(d)}</span>
+                          <span className="avail-votes">{vc} vote{vc !== 1 ? 's' : ''}</span>
+                          <div style={{ width: '100%' }}><div className="avail-bar-wrap"><div className="avail-bar" style={{ width: `${pct}%` }} /></div></div>
+                        </div>
+                      );
+                    })}
+                  </>
+                );
+              })()}
+
+              {isGroup && !ev.confirmed && (ev.dates || []).length === 1 && ev.dates[0] && (
                 <div style={{ fontSize: '12.5px', color: 'var(--ink-muted)', margin: '6px 0' }}>{fmtDT(ev.dates[0])}</div>
               )}
 

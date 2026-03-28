@@ -1,7 +1,8 @@
 'use client';
 import { useState, useEffect } from 'react';
 import BarChart from './BarChart';
-import { getHealthScore, getHealthColor, getHealthLabel, getDaysSince, getStreak, fmtDate, cadLbl, callClaude, parseAIList } from '../lib/data';
+import { getHealthScore, getHealthColor, getHealthLabel, getDaysSince, getStreak, fmtDate, cadLbl } from '../lib/data';
+import { getConvoStarters, getHangoutIdeas } from '../lib/suggestions';
 import { useToast } from '../lib/toast';
 
 export default function FriendDetailModal({ friend: f, profile, onClose, onUpdate, onDelete }) {
@@ -48,26 +49,16 @@ export default function FriendDetailModal({ friend: f, profile, onClose, onUpdat
     showToast('Hangout logged.');
   }
 
-  async function loadConvoStarters() {
-    setConvoUsed(true); setAiPanel({ type: 'loading', label: `Conversation starters for ${f.name}` });
-    const hist = (f.hangouts || []).slice(-5).map(h => h.activity).join(', ');
-    const prompt = `You are a warm, thoughtful friend coach. Based on this profile, generate 4 specific, genuine conversation starters to use when catching up with ${f.name}.\n\nFriend info:\n- Tags: ${(f.tags || []).join(', ') || 'none'}\n- Notes: ${f.notes || 'none'}\n- Recent hangouts: ${hist || 'none yet'}\n- Cadence: every ${f.cadence} days\n\nReturn ONLY a numbered list of 4 conversation starters (one per line). Each should be specific, warm, and based on the info provided. No preamble or explanation.`;
-    try {
-      const text = await callClaude(prompt);
-      const items = parseAIList(text);
-      setAiPanel({ type: 'convo', label: `Conversation starters for ${f.name}`, items });
-    } catch { setAiPanel({ type: 'error' }); setConvoUsed(false); }
+  function loadConvoStarters() {
+    setConvoUsed(true);
+    const items = getConvoStarters(f);
+    setAiPanel({ type: 'convo', label: `Conversation starters for ${f.name}`, items });
   }
 
-  async function loadHangoutIdeas() {
-    setIdeasUsed(true); setAiPanel({ type: 'loading', label: `Hangout ideas for you & ${f.name}` });
-    const recent = (f.hangouts || []).slice(-5).map(h => h.activity).join(', ');
-    const prompt = `You are a creative social planner. Suggest 4 specific hangout ideas for two people.\n\nFriend (${f.name}):\n- Tags: ${(f.tags || []).join(', ') || 'none'}\n- Notes: ${f.notes || 'none'}\n- Recent hangouts: ${recent || 'none yet'}\n\nUser:\n- Hobbies: ${(profile?.hobbies || []).join(', ') || 'not specified'}\n- Preferred hangout types: ${(profile?.hangtypes || []).join(', ') || 'not specified'}\n\nGenerate 4 fresh, specific hangout ideas they haven't done recently. Be creative and concrete. Return ONLY a numbered list, one idea per line, no preamble.`;
-    try {
-      const text = await callClaude(prompt);
-      const items = parseAIList(text);
-      setAiPanel({ type: 'ideas', label: `Hangout ideas for you & ${f.name}`, items });
-    } catch { setAiPanel({ type: 'error' }); setIdeasUsed(false); }
+  function loadHangoutIdeas() {
+    setIdeasUsed(true);
+    const items = getHangoutIdeas(f, profile);
+    setAiPanel({ type: 'ideas', label: `Hangout ideas for you & ${f.name}`, items });
   }
 
   return (
@@ -128,31 +119,20 @@ export default function FriendDetailModal({ friend: f, profile, onClose, onUpdat
             </div>
             {aiPanel && (
               <div className="ai-panel">
-                {aiPanel.type === 'loading' && (
-                  <>
-                    <div className="ai-panel-header"><span className="ai-chip">AI</span> {aiPanel.label}</div>
-                    <div className="ai-loading">Thinking<span className="ai-loading-dots" /></div>
-                  </>
-                )}
-                {aiPanel.type === 'error' && <div style={{ fontSize: 13, color: 'var(--health-low)' }}>Couldn&apos;t load suggestions. Check your connection.</div>}
-                {(aiPanel.type === 'convo' || aiPanel.type === 'ideas') && (
-                  <>
-                    <div className="ai-panel-header"><span className="ai-chip">AI</span> {aiPanel.label}</div>
-                    {(aiPanel.items || []).map((item, i) => (
-                      <div key={i} className="ai-result-item"
-                        onClick={() => {
-                          if (aiPanel.type === 'convo') { navigator.clipboard.writeText(item); showToast('Copied to clipboard.'); }
-                          else { setHangoutActivity(item.length > 60 ? item.slice(0, 57) + '…' : item); showToast('Added to hangout log.'); }
-                        }}>
-                        <span className="item-icon">{i + 1}</span>
-                        <span>{item}</span>
-                      </div>
-                    ))}
-                    <div style={{ fontSize: 11, color: 'var(--plum)', marginTop: 8, opacity: 0.7 }}>
-                      {aiPanel.type === 'convo' ? 'Click any to copy · Refresh for new ideas' : 'Click any to add to hangout log'}
-                    </div>
-                  </>
-                )}
+                <div className="ai-panel-header"><span className="ai-chip">✦</span> {aiPanel.label}</div>
+                {(aiPanel.items || []).map((item, i) => (
+                  <div key={i} className="ai-result-item"
+                    onClick={() => {
+                      if (aiPanel.type === 'convo') { navigator.clipboard.writeText(item); showToast('Copied to clipboard.'); }
+                      else { setHangoutActivity(item.length > 60 ? item.slice(0, 57) + '…' : item); showToast('Added to hangout log.'); }
+                    }}>
+                    <span className="item-icon">{i + 1}</span>
+                    <span>{item}</span>
+                  </div>
+                ))}
+                <div style={{ fontSize: 11, color: 'var(--plum)', marginTop: 8, opacity: 0.7 }}>
+                  {aiPanel.type === 'convo' ? 'Tap any to copy' : 'Tap any to add to hangout log'}
+                </div>
               </div>
             )}
           </div>
