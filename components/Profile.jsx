@@ -8,7 +8,7 @@ const HOBBIES = ['Hiking', 'Cooking', 'Reading', 'Gaming', 'Art', 'Music', 'Fitn
 const TIMES = ['Weekend mornings', 'Weekday evenings', 'Weekend nights', 'Weekday lunches', 'Any time'];
 const HANGTYPES = ['Coffee catch-ups', 'Dinner out', 'House parties', 'Movies', 'Outdoor activities', 'Game nights', 'Live music', 'Active outings'];
 
-export default function Profile({ profile, onUpdateProfile, friends }) {
+export default function Profile({ profile, onUpdateProfile, friends, onSignOut }) {
   const [editing, setEditing] = useState(false);
   const [showColorPicker, setShowColorPicker] = useState(false);
   const [showShareModal, setShowShareModal] = useState(false);
@@ -139,6 +139,18 @@ export default function Profile({ profile, onUpdateProfile, friends }) {
             <button className="btn btn-ghost" onClick={cancelEdit} style={{ flex: 1 }}>Cancel</button>
             <button className="btn btn-primary" onClick={saveProfile} style={{ flex: 2 }}>Save profile</button>
           </div>
+        </div>
+      )}
+
+      {/* SIGN OUT */}
+      {!editing && onSignOut && (
+        <div style={{ marginTop: 24, paddingTop: 20, borderTop: '1px solid var(--border)' }}>
+          <button
+            onClick={onSignOut}
+            style={{ width: '100%', padding: '11px', borderRadius: 12, border: '1.5px solid var(--border)', background: 'none', color: 'var(--ink-muted)', fontSize: 14, fontWeight: 600, cursor: 'pointer' }}
+          >
+            Sign out
+          </button>
         </div>
       )}
 
