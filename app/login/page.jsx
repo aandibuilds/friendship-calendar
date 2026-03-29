@@ -4,6 +4,7 @@ import { createClient } from '../../lib/supabase/client';
 
 export default function LoginPage() {
   const [mode, setMode] = useState('signin'); // 'signin' | 'signup'
+  const isInvited = typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('invited') === '1';
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -62,9 +63,14 @@ export default function LoginPage() {
         <h2 style={{ fontSize: 18, fontWeight: 700, color: '#1a1a2e', marginBottom: 4 }}>
           {mode === 'signin' ? 'Welcome back' : 'Create your account'}
         </h2>
-        <p style={{ fontSize: 13.5, color: '#6B7280', marginBottom: 24 }}>
+        <p style={{ fontSize: 13.5, color: '#6B7280', marginBottom: isInvited ? 12 : 24 }}>
           {mode === 'signin' ? 'Sign in to your account' : 'Start nurturing your friendships'}
         </p>
+        {isInvited && (
+          <div style={{ background: '#FFF8E1', border: '1px solid #F9A825', borderRadius: 8, padding: '9px 12px', marginBottom: 16, fontSize: 13, color: '#7A5C00' }}>
+            You were invited! Check your email for the invite link — click it to set your password and sign in.
+          </div>
+        )}
 
         <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
           {mode === 'signup' && (
