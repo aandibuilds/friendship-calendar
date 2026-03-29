@@ -122,13 +122,10 @@ function AppInner() {
         } else if (data.alreadyFriends) {
           showToast(`${saved.name} is already connected!`);
         } else if (data.manualLink) {
-          // No email service — copy link to clipboard
-          try {
-            await navigator.clipboard.writeText(data.manualLink);
-            showToast('Invite link copied! Share it with your friend.');
-          } catch {
-            prompt('Copy this invite link:', data.manualLink);
-          }
+          // Invite created — open the friend card so user can copy the link
+          // (clipboard API fails here because we're no longer in a user gesture)
+          showToast('Invite created — copy the link from their card.');
+          setOpenFriendId(saved.id);
         } else {
           showToast(`Invite sent to ${f.email.trim()}!`);
         }

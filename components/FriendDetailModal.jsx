@@ -14,6 +14,7 @@ export default function FriendDetailModal({ friend: f, profile, onClose, onUpdat
   const [ideasUsed, setIdeasUsed] = useState(false);
   const [inviteEmail, setInviteEmail] = useState(f.email || '');
   const [inviteState, setInviteState] = useState(''); // '' | 'sending' | 'sent' | 'error'
+  const [inviteLink, setInviteLink] = useState(null); // stored link for user-gesture copy
 
   useEffect(() => {
     setHangoutDate(new Date().toISOString().split('T')[0]);
@@ -21,6 +22,22 @@ export default function FriendDetailModal({ friend: f, profile, onClose, onUpdat
     setAiPanel(null);
     setConvoUsed(false);
     setIdeasUsed(false);
+    setInviteLink(null);
+    setInviteState('');
+
+    // Fetch existing invite link for this friend if they have an email
+    if (f?.email && !f?.linkedUserId) {
+      fetch('/api/invite-friend', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: f.email.trim(), friendId: f.id, friendName: f.name }),
+      })
+        .then(r => r.json())
+        .then(data => {
+          if (data.manualLink) setInviteLink(data.manualLink);
+        })
+        .catch(() => {});
+    }
   }, [f?.id]);
 
   if (!f) return null;
@@ -181,57 +198,70 @@ export default function FriendDetailModal({ friend: f, profile, onClose, onUpdat
         {/* INVITE TO APP */}
         {!f.linkedUserId && (
           <div style={{ margin: '16px 0 4px', padding: '14px 16px', background: 'var(--plum-pale)', borderRadius: 12, border: '1px solid rgba(124,58,237,0.15)' }}>
-            {f.email && inviteState !== 'sent' && inviteState !== 'sending' && inviteState !== 'error' ? (
+            {f.email && inviteState !== 'sending' && inviteState !== 'error' ? (
               <>
-                {/* Email already on file (invite was auto-sent on add) — show status + resend */}
+                {/* Email on file — show pending status, copy button, resend */}
                 <div style={{ fontWeight: 600, fontSize: 13.5, marginBottom: 4 }}>
-                  Invite pending
+                  {inviteState === 'sent' ? '✓ Invite sent!' : 'Invite pending'}
                 </div>
                 <div style={{ fontSize: 12.5, color: 'var(--ink-muted)', marginBottom: 10 }}>
-                  An invite was sent to {f.email}. Once they accept, they'll be connected here.
+                  {inviteState === 'sent'
+                    ? `Invite created for ${inviteEmail || f.email}. Once they accept, they'll be connected here.`
+                    : `An invite was created for ${f.email}. Once they accept, they'll be connected here.`}
                 </div>
-                <button
-                  className="btn btn-primary btn-sm"
-                  disabled={inviteState === 'sending'}
-                  onClick={async () => {
-                    setInviteState('sending');
-                    try {
-                      const res = await fetch('/api/invite-friend', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ email: f.email.trim(), friendId: f.id, friendName: f.name }),
-                      });
-                      const data = await res.json();
-                      if (data.error) throw new Error(data.error);
-                      if (data.alreadyFriends) {
-                        showToast(`${f.name} is already connected!`);
-                      } else if (data.manualLink) {
-                        navigator.clipboard.writeText(data.manualLink).then(() => {
-                          showToast('Invite link copied! Share it with your friend.');
-                        }).catch(() => {
-                          prompt('Copy this invite link:', data.manualLink);
-                        });
-                      } else {
-                        showToast('Invite resent!');
+
+                {/* Copy invite link button — direct user gesture, clipboard works reliably */}
+                {inviteLink && (
+                  <button
+                    className="btn btn-primary btn-sm"
+                    style={{ marginBottom: 8, width: '100%' }}
+                    onClick={async () => {
+                      try {
+                        await navigator.clipboard.writeText(inviteLink);
+                        showToast('Invite link copied to clipboard!');
+                      } catch (err) {
+                        console.error('Clipboard copy failed:', err);
+                        prompt('Copy this invite link:', inviteLink);
                       }
-                      setInviteState('sent');
-                    } catch (err) {
-                      showToast('Failed to resend invite — try again.');
-                      setInviteState('error');
-                    }
-                  }}
-                >
-                  Resend invite
-                </button>
-              </>
-            ) : inviteState === 'sent' ? (
-              <>
-                <div style={{ fontWeight: 600, fontSize: 13.5, marginBottom: 4 }}>
-                  ✓ Invite sent!
-                </div>
-                <div style={{ fontSize: 12.5, color: 'var(--ink-muted)' }}>
-                  Invite created for {inviteEmail || f.email}. Once they accept, they'll be connected here.
-                </div>
+                    }}
+                  >
+                    Copy invite link
+                  </button>
+                )}
+
+                {inviteState !== 'sent' && (
+                  <button
+                    className="btn btn-ghost btn-sm"
+                    style={{ width: '100%' }}
+                    disabled={inviteState === 'sending'}
+                    onClick={async () => {
+                      setInviteState('sending');
+                      try {
+                        const res = await fetch('/api/invite-friend', {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({ email: f.email.trim(), friendId: f.id, friendName: f.name }),
+                        });
+                        const data = await res.json();
+                        if (data.error) throw new Error(data.error);
+                        if (data.alreadyFriends) {
+                          showToast(`${f.name} is already connected!`);
+                        } else if (data.manualLink) {
+                          setInviteLink(data.manualLink);
+                          showToast('New invite link generated — tap Copy to share.');
+                        } else {
+                          showToast('Invite resent!');
+                        }
+                        setInviteState('sent');
+                      } catch (err) {
+                        showToast('Failed to resend invite — try again.');
+                        setInviteState('error');
+                      }
+                    }}
+                  >
+                    Resend invite
+                  </button>
+                )}
               </>
             ) : (
               <>
@@ -267,11 +297,10 @@ export default function FriendDetailModal({ friend: f, profile, onClose, onUpdat
                         if (data.alreadyFriends) {
                           showToast(`${f.name} is already connected!`);
                         } else if (data.manualLink) {
-                          navigator.clipboard.writeText(data.manualLink).then(() => {
-                            showToast('Invite link copied! Share it with your friend.');
-                          }).catch(() => {
-                            prompt('Copy this invite link:', data.manualLink);
-                          });
+                          setInviteLink(data.manualLink);
+                          showToast('Invite created — tap Copy invite link to share.');
+                        } else {
+                          showToast(`Invite sent to ${inviteEmail.trim()}!`);
                         }
                         setInviteState('sent');
                         if (inviteEmail !== f.email) onUpdate({ ...f, email: inviteEmail.trim() });
@@ -284,6 +313,25 @@ export default function FriendDetailModal({ friend: f, profile, onClose, onUpdat
                     {inviteState === 'sending' ? '...' : 'Send'}
                   </button>
                 </div>
+
+                {/* Show copy button after sending from this input too */}
+                {inviteLink && inviteState === 'sent' && (
+                  <button
+                    className="btn btn-primary btn-sm"
+                    style={{ marginTop: 10, width: '100%' }}
+                    onClick={async () => {
+                      try {
+                        await navigator.clipboard.writeText(inviteLink);
+                        showToast('Invite link copied to clipboard!');
+                      } catch (err) {
+                        console.error('Clipboard copy failed:', err);
+                        prompt('Copy this invite link:', inviteLink);
+                      }
+                    }}
+                  >
+                    Copy invite link
+                  </button>
+                )}
               </>
             )}
           </div>
