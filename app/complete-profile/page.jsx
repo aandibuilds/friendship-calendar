@@ -46,6 +46,9 @@ export default function CompleteProfilePage() {
       });
     }
 
+    // Link any pending friend invites for this email (uses service role to bypass RLS)
+    await fetch('/api/link-accounts', { method: 'POST' });
+
     window.location.href = '/';
   }
 

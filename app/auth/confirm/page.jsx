@@ -41,24 +41,6 @@ export default function ConfirmPage() {
         return;
       }
 
-      // Link accounts if from friend invite
-      if (inviterId && friendId) {
-        const { data: { user } } = await supabase.auth.getUser();
-        if (user) {
-          await supabase
-            .from('friends')
-            .update({ linked_user_id: user.id })
-            .eq('id', friendId)
-            .eq('user_id', inviterId);
-
-          await supabase
-            .from('friend_invites')
-            .update({ accepted: true })
-            .eq('friend_id', friendId)
-            .eq('inviter_id', inviterId);
-        }
-      }
-
       const { data: { user: currentUser } } = await supabase.auth.getUser();
       const hasName = currentUser?.user_metadata?.name;
 
