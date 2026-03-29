@@ -41,13 +41,12 @@ export async function POST(req) {
   }
 
   // Send the invite email via Supabase Auth
+  // Both invite and recovery links go directly to /auth/confirm (client page).
+  // No inviter/friend params needed — /api/link-accounts looks them up by email.
   const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://friendship-calendar.vercel.app';
-  // Invite links use /auth/callback (Route Handler handles token_hash from inviteUserByEmail)
-  const redirectUrl = `${siteUrl}/auth/callback?inviter=${user.id}&friend=${friendId}`;
-  // Recovery emails must go to a CLIENT page — server Route Handlers can't read the hash fragment
-  const recoveryRedirectUrl = `${siteUrl}/auth/confirm?inviter=${user.id}&friend=${friendId}`;
+  const confirmUrl = `${siteUrl}/auth/confirm`;
   const { error: sendErr } = await admin.auth.admin.inviteUserByEmail(email, {
-    redirectTo: redirectUrl,
+    redirectTo: confirmUrl,
     data: { invited_by: user.id, friend_id: friendId, inviter_name: user.user_metadata?.name || 'A friend' },
   });
 
@@ -56,7 +55,7 @@ export async function POST(req) {
       // Account exists from a previous invite attempt — send a recovery link
       // so they can still complete their profile setup
       const { error: resetErr } = await admin.auth.resetPasswordForEmail(email, {
-        redirectTo: recoveryRedirectUrl,
+        redirectTo: confirmUrl,
       });
       if (resetErr) {
         return NextResponse.json({ error: resetErr.message }, { status: 500 });
