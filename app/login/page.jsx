@@ -3,7 +3,7 @@ import { useState } from 'react';
 import { createClient } from '../../lib/supabase/client';
 
 export default function LoginPage() {
-  const [mode, setMode] = useState('signin'); // 'signin' | 'signup'
+  const [mode, setMode] = useState('signin'); // 'signin' | 'signup' | 'reset'
   const isInvited = typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('invited') === '1';
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
@@ -18,18 +18,38 @@ export default function LoginPage() {
     e.preventDefault();
     setError(''); setMessage(''); setLoading(true);
 
-    if (mode === 'signup') {
+    if (mode === 'reset') {
+      const { error } = await supabase.auth.resetPasswordForEmail(email, {
+        redirectTo: `${window.location.origin}/auth/callback`,
+      });
+      if (error) { setError(error.message); setLoading(false); return; }
+      setMessage('Check your email for a password reset link.');
+    } else if (mode === 'signup') {
       const { error } = await supabase.auth.signUp({
-        email,
-        password,
-        options: { data: { name } },
+        email, password, options: { data: { name } },
       });
       if (error) { setError(error.message); setLoading(false); return; }
       setMessage('Check your email to confirm your account, then sign in.');
       setMode('signin');
     } else {
-      const { error } = await supabase.auth.signInWithPassword({ email, password });
+      const { data, error } = await supabase.auth.signInWithPassword({ email, password });
       if (error) { setError(error.message); setLoading(false); return; }
+      // Auto-link any pending invites for this email
+      if (data.user) {
+        const { data: invites } = await supabase
+          .from('friend_invites')
+          .select('inviter_id, friend_id')
+          .eq('email', email)
+          .eq('accepted', false);
+        if (invites?.length) {
+          for (const inv of invites) {
+            await supabase.from('friends').update({ linked_user_id: data.user.id })
+              .eq('id', inv.friend_id).eq('user_id', inv.inviter_id);
+            await supabase.from('friend_invites').update({ accepted: true })
+              .eq('friend_id', inv.friend_id).eq('inviter_id', inv.inviter_id);
+          }
+        }
+      }
       window.location.href = '/';
     }
     setLoading(false);
@@ -61,10 +81,10 @@ export default function LoginPage() {
         boxShadow: '0 4px 24px rgba(124,58,237,0.10)',
       }}>
         <h2 style={{ fontSize: 18, fontWeight: 700, color: '#1a1a2e', marginBottom: 4 }}>
-          {mode === 'signin' ? 'Welcome back' : 'Create your account'}
+          {mode === 'signin' ? 'Welcome back' : mode === 'signup' ? 'Create your account' : 'Reset your password'}
         </h2>
         <p style={{ fontSize: 13.5, color: '#6B7280', marginBottom: isInvited ? 12 : 24 }}>
-          {mode === 'signin' ? 'Sign in to your account' : 'Start nurturing your friendships'}
+          {mode === 'signin' ? 'Sign in to your account' : mode === 'signup' ? 'Start nurturing your friendships' : 'We\'ll email you a reset link'}
         </p>
         {isInvited && (
           <div style={{ background: '#FFF8E1', border: '1px solid #F9A825', borderRadius: 8, padding: '9px 12px', marginBottom: 16, fontSize: 13, color: '#7A5C00' }}>
@@ -101,19 +121,21 @@ export default function LoginPage() {
               }}
             />
           </div>
-          <div>
-            <label style={{ fontSize: 13, fontWeight: 600, color: '#374151', display: 'block', marginBottom: 5 }}>Password</label>
-            <input
-              type="password" value={password} onChange={e => setPassword(e.target.value)}
-              placeholder={mode === 'signup' ? 'At least 6 characters' : '••••••••'}
-              required
-              style={{
-                width: '100%', padding: '10px 14px', borderRadius: 10,
-                border: '1.5px solid #E5E7EB', fontSize: 14, outline: 'none',
-                boxSizing: 'border-box',
-              }}
-            />
-          </div>
+          {mode !== 'reset' && (
+            <div>
+              <label style={{ fontSize: 13, fontWeight: 600, color: '#374151', display: 'block', marginBottom: 5 }}>Password</label>
+              <input
+                type="password" value={password} onChange={e => setPassword(e.target.value)}
+                placeholder={mode === 'signup' ? 'At least 6 characters' : '••••••••'}
+                required
+                style={{
+                  width: '100%', padding: '10px 14px', borderRadius: 10,
+                  border: '1.5px solid #E5E7EB', fontSize: 14, outline: 'none',
+                  boxSizing: 'border-box',
+                }}
+              />
+            </div>
+          )}
 
           {error && (
             <div style={{ background: '#FEF2F2', border: '1px solid #FECACA', borderRadius: 8, padding: '9px 12px', fontSize: 13, color: '#DC2626' }}>
@@ -142,13 +164,28 @@ export default function LoginPage() {
         </form>
 
         <div style={{ marginTop: 20, textAlign: 'center', fontSize: 13.5, color: '#6B7280' }}>
-          {mode === 'signin' ? "Don't have an account? " : 'Already have an account? '}
-          <button
-            onClick={() => { setMode(mode === 'signin' ? 'signup' : 'signin'); setError(''); setMessage(''); }}
-            style={{ background: 'none', border: 'none', color: '#7C3AED', fontWeight: 700, cursor: 'pointer', padding: 0 }}
-          >
-            {mode === 'signin' ? 'Sign up' : 'Sign in'}
-          </button>
+          {mode === 'reset' ? (
+            <button onClick={() => { setMode('signin'); setError(''); setMessage(''); }}
+              style={{ background: 'none', border: 'none', color: '#7C3AED', fontWeight: 700, cursor: 'pointer', padding: 0 }}>
+              Back to sign in
+            </button>
+          ) : (
+            <>
+              {mode === 'signin' ? "Don't have an account? " : 'Already have an account? '}
+              <button onClick={() => { setMode(mode === 'signin' ? 'signup' : 'signin'); setError(''); setMessage(''); }}
+                style={{ background: 'none', border: 'none', color: '#7C3AED', fontWeight: 700, cursor: 'pointer', padding: 0 }}>
+                {mode === 'signin' ? 'Sign up' : 'Sign in'}
+              </button>
+              {mode === 'signin' && (
+                <div style={{ marginTop: 8 }}>
+                  <button onClick={() => { setMode('reset'); setError(''); setMessage(''); }}
+                    style={{ background: 'none', border: 'none', color: '#9CA3AF', fontSize: 13, cursor: 'pointer', padding: 0 }}>
+                    Forgot password?
+                  </button>
+                </div>
+              )}
+            </>
+          )}
         </div>
       </div>
     </div>
