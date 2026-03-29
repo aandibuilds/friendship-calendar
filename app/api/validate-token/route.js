@@ -52,14 +52,17 @@ export async function POST(req) {
     .eq('id', invitation.inviter_id)
     .single();
 
-  // Check if invitee already has a Supabase account
-  const { data: existingUsers } = await admin.auth.admin.listUsers();
-  const existingUser = existingUsers?.users?.find(u => u.email === invitation.invitee_email);
+  // Check if invitee already has an account (efficient single-row lookup)
+  const { data: existingProfile } = await admin
+    .from('profiles')
+    .select('id')
+    .eq('email', invitation.invitee_email)
+    .single();
 
   return NextResponse.json({
     valid: true,
     email: invitation.invitee_email,
     inviterName: inviterProfile?.name || 'A friend',
-    existingUser: !!existingUser,
+    existingUser: !!existingProfile,
   });
 }

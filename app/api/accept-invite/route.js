@@ -10,9 +10,8 @@ import { cookies } from 'next/headers';
   Uses service role to bypass RLS.
 
   1. Finds all pending invitations for the current user's email
-  2. Marks them as accepted (triggers DB function → creates friendships)
-  3. Also creates friendships manually as a safety net
-  4. Sets completed_profile = true if not already set
+  2. Marks them as accepted → DB trigger creates friendships + sets linked_user_id
+  3. Also handles legacy friend_invites table for backward compat
 */
 
 export async function POST() {
@@ -43,28 +42,10 @@ export async function POST() {
 
   if (invitations?.length) {
     for (const inv of invitations) {
-      // Mark accepted (triggers DB function → creates friendships)
+      // Mark accepted — DB trigger handles friendship creation + linked_user_id
       await admin.from('invitations')
         .update({ status: 'accepted' })
         .eq('id', inv.id);
-
-      // Safety net: also create friendships manually
-      await admin.from('friendships').upsert(
-        { user_id: inv.inviter_id, friend_id: user.id },
-        { onConflict: 'user_id,friend_id' }
-      );
-      await admin.from('friendships').upsert(
-        { user_id: user.id, friend_id: inv.inviter_id },
-        { onConflict: 'user_id,friend_id' }
-      );
-
-      // Update inviter's friend card
-      if (inv.friend_id) {
-        await admin.from('friends')
-          .update({ linked_user_id: user.id })
-          .eq('id', inv.friend_id)
-          .eq('user_id', inv.inviter_id);
-      }
 
       linked++;
     }

@@ -5,18 +5,30 @@ import { createClient as createAdminClient } from '@supabase/supabase-js';
   POST /api/register-invited-user
   Body: { token, name, birthday, password }
 
-  Creates a new Supabase auth account for the invited user,
-  completes their profile, accepts the invitation, and
-  the DB trigger automatically creates friendships.
+  PUBLIC endpoint — the user hasn't signed up yet.
 
-  This is a PUBLIC endpoint — the user hasn't signed up yet.
+  1. Validates the invite token
+  2. Creates (or updates) the Supabase auth account
+  3. Updates the profile row
+  4. Sets invitation status to 'accepted'
+     → DB trigger handles friendship creation + linked_user_id
 */
 
 export async function POST(req) {
-  const { token, name, birthday, password } = await req.json();
+  let body;
+  try {
+    body = await req.json();
+  } catch {
+    return NextResponse.json({ error: 'Invalid request body' }, { status: 400 });
+  }
+
+  const { token, name, birthday, password } = body;
 
   if (!token || !name?.trim() || !password) {
     return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
+  }
+  if (!birthday) {
+    return NextResponse.json({ error: 'Birthday is required' }, { status: 400 });
   }
   if (password.length < 6) {
     return NextResponse.json({ error: 'Password must be at least 6 characters' }, { status: 400 });
@@ -47,44 +59,62 @@ export async function POST(req) {
 
   const email = invitation.invitee_email;
 
-  // ── Check if user already has a Supabase account ────────────
-  const { data: existingUsers } = await admin.auth.admin.listUsers();
-  const existingUser = existingUsers?.users?.find(u => u.email === email);
+  // ── Create or update auth account ───────────────────────────
+  // Check if user exists via profiles table (efficient single-row lookup)
+  const { data: existingProfile } = await admin
+    .from('profiles')
+    .select('id')
+    .eq('email', email)
+    .single();
 
   let userId;
 
-  if (existingUser) {
-    // User exists (maybe from a prior inviteUserByEmail call) — update their password + metadata
-    userId = existingUser.id;
-    await admin.auth.admin.updateUserById(userId, {
-      password,
-      user_metadata: { name: name.trim(), completed_profile: true },
-    });
-  } else {
-    // Create new Supabase auth account (email auto-confirmed, no verification email)
-    const { data: newUser, error: createErr } = await admin.auth.admin.createUser({
-      email,
-      password,
-      email_confirm: true,
-      user_metadata: { name: name.trim(), completed_profile: true },
-    });
-    if (createErr) {
-      console.error('createUser error:', createErr);
-      return NextResponse.json({ error: createErr.message }, { status: 500 });
+  try {
+    if (existingProfile) {
+      // User exists (maybe from a prior inviteUserByEmail call) — update password + metadata
+      userId = existingProfile.id;
+      const { error: updateErr } = await admin.auth.admin.updateUserById(userId, {
+        password,
+        user_metadata: { name: name.trim(), completed_profile: true },
+      });
+      if (updateErr) {
+        return NextResponse.json({ error: updateErr.message }, { status: 500 });
+      }
+    } else {
+      // Create new account (email auto-confirmed, no verification email sent)
+      const { data: newUser, error: createErr } = await admin.auth.admin.createUser({
+        email,
+        password,
+        email_confirm: true,
+        user_metadata: { name: name.trim(), completed_profile: true },
+      });
+      if (createErr) {
+        return NextResponse.json({ error: createErr.message }, { status: 500 });
+      }
+      userId = newUser.user.id;
     }
-    userId = newUser.user.id;
+  } catch (err) {
+    console.error('Auth account error:', err);
+    return NextResponse.json({ error: 'Failed to create account' }, { status: 500 });
   }
 
   // ── Update profile ──────────────────────────────────────────
-  await admin.from('profiles').upsert({
+  const { error: profileErr } = await admin.from('profiles').upsert({
     id: userId,
     name: name.trim(),
     email,
     birthday: birthday || '',
     completed_profile: true,
   });
+  if (profileErr) {
+    console.error('Profile upsert error:', profileErr);
+  }
 
-  // ── Accept invitation (triggers DB function → creates friendships) ─
+  // ── Accept invitation ───────────────────────────────────────
+  // Setting status to 'accepted' fires the DB trigger which:
+  //   1. Creates bidirectional friendships
+  //   2. Updates friends.linked_user_id
+  // No manual friendship creation needed here.
   const { error: acceptErr } = await admin
     .from('invitations')
     .update({ status: 'accepted' })
@@ -92,32 +122,8 @@ export async function POST(req) {
 
   if (acceptErr) {
     console.error('Accept invitation error:', acceptErr);
-    // Non-fatal — friendships might not be created by trigger, so do it manually
-    await createFriendshipsManually(admin, invitation.inviter_id, userId, invitation.friend_id);
+    return NextResponse.json({ error: 'Account created but invitation acceptance failed. Try signing in.' }, { status: 500 });
   }
-
-  // ── Double-check: ensure friendships exist (belt + suspenders) ─
-  await createFriendshipsManually(admin, invitation.inviter_id, userId, invitation.friend_id);
 
   return NextResponse.json({ success: true, email });
-}
-
-async function createFriendshipsManually(admin, inviterId, inviteeId, friendCardId) {
-  // Bidirectional friendship (idempotent via upsert)
-  await admin.from('friendships').upsert(
-    { user_id: inviterId, friend_id: inviteeId },
-    { onConflict: 'user_id,friend_id' }
-  );
-  await admin.from('friendships').upsert(
-    { user_id: inviteeId, friend_id: inviterId },
-    { onConflict: 'user_id,friend_id' }
-  );
-
-  // Update inviter's friend card for UI badge
-  if (friendCardId) {
-    await admin.from('friends')
-      .update({ linked_user_id: inviteeId })
-      .eq('id', friendCardId)
-      .eq('user_id', inviterId);
-  }
 }

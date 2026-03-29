@@ -34,7 +34,8 @@ export async function middleware(request) {
   }
 
   // Unauthenticated → login (except allowed pages)
-  if (!user && !isLoginPage && !isUpdatePassword && !isConfirmProfile) {
+  // Note: /confirm-profile WITH a token is already handled above (early return on line 32)
+  if (!user && !isLoginPage && !isUpdatePassword) {
     return NextResponse.redirect(new URL('/login', request.url));
   }
 
