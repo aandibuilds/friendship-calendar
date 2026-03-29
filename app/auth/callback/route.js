@@ -2,14 +2,34 @@ import { NextResponse } from 'next/server';
 import { createServerClient } from '@supabase/ssr';
 import { cookies } from 'next/headers';
 
+/*
+  GET /auth/callback
+
+  Handles redirect from Supabase auth links.
+  - token_hash/type → forward to /auth/confirm (client page handles it)
+  - code → exchange for session server-side (PKCE), then redirect
+  - neither → redirect to /login
+*/
+
 export async function GET(request) {
   const { searchParams, origin } = new URL(request.url);
   const code = searchParams.get('code');
   const tokenHash = searchParams.get('token_hash');
   const type = searchParams.get('type');
-  const inviterId = searchParams.get('inviter');
-  const friendId = searchParams.get('friend');
 
+  // token_hash must be handled client-side for proper session storage
+  if (tokenHash && type) {
+    const confirmUrl = new URL(`${origin}/auth/confirm`);
+    confirmUrl.searchParams.set('token_hash', tokenHash);
+    confirmUrl.searchParams.set('type', type);
+    return NextResponse.redirect(confirmUrl.toString());
+  }
+
+  if (!code) {
+    return NextResponse.redirect(`${origin}/login`);
+  }
+
+  // PKCE code exchange (server-side)
   const cookieStore = await cookies();
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL,
@@ -24,45 +44,10 @@ export async function GET(request) {
     }
   );
 
-  // token_hash links (invites, password reset) must be verified client-side
-  // so the browser Supabase client can store the session properly
-  if (tokenHash && type) {
-    const confirmUrl = new URL(`${origin}/auth/confirm`);
-    confirmUrl.searchParams.set('token_hash', tokenHash);
-    confirmUrl.searchParams.set('type', type);
-    if (inviterId) confirmUrl.searchParams.set('inviter', inviterId);
-    if (friendId) confirmUrl.searchParams.set('friend', friendId);
-    return NextResponse.redirect(confirmUrl.toString());
-  }
-
-  if (!code) {
+  const { error } = await supabase.auth.exchangeCodeForSession(code);
+  if (error) {
+    console.error('Auth callback code exchange error:', error);
     return NextResponse.redirect(`${origin}/login`);
-  }
-
-  // Standard OAuth / magic link with PKCE
-  const { error: sessionError } = await supabase.auth.exchangeCodeForSession(code);
-
-  if (sessionError) {
-    console.error('Auth callback error:', sessionError);
-    return NextResponse.redirect(`${origin}/login`);
-  }
-
-  // Link accounts if this came from a friend invite (code-based flow)
-  if (inviterId && friendId) {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (user) {
-      await supabase
-        .from('friends')
-        .update({ linked_user_id: user.id })
-        .eq('id', friendId)
-        .eq('user_id', inviterId);
-
-      await supabase
-        .from('friend_invites')
-        .update({ accepted: true })
-        .eq('friend_id', friendId)
-        .eq('inviter_id', inviterId);
-    }
   }
 
   return NextResponse.redirect(`${origin}/`);

@@ -27,13 +27,16 @@ export async function middleware(request) {
   const { pathname } = request.nextUrl;
   const isLoginPage = pathname.startsWith('/login');
   const isUpdatePassword = pathname.startsWith('/update-password');
+  const isConfirmProfile = pathname.startsWith('/confirm-profile');
 
-  // Redirect unauthenticated users to login (but allow update-password — arrives with fresh session from reset link)
-  if (!user && !isLoginPage && !isUpdatePassword) {
+  // These pages may be accessed with a session that was JUST established
+  // by /auth/confirm (via redirect). Allow them even if middleware can't
+  // see the session yet (cookie propagation timing).
+  if (!user && !isLoginPage && !isUpdatePassword && !isConfirmProfile) {
     return NextResponse.redirect(new URL('/login', request.url));
   }
 
-  // Redirect authenticated users away from login page only (not update-password)
+  // Authenticated users shouldn't see the login page
   if (user && isLoginPage) {
     return NextResponse.redirect(new URL('/', request.url));
   }

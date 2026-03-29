@@ -2,6 +2,14 @@
 import { useState } from 'react';
 import { createClient } from '../../lib/supabase/client';
 
+/*
+  /update-password — Forgot password completion
+
+  User arrives here after clicking a password reset email link.
+  Session was established by /auth/confirm before redirecting here.
+  After setting new password → sign out → redirect to /login.
+*/
+
 export default function UpdatePasswordPage() {
   const [password, setPassword] = useState('');
   const [confirm, setConfirm] = useState('');
@@ -11,14 +19,37 @@ export default function UpdatePasswordPage() {
   async function handleSubmit(e) {
     e.preventDefault();
     setError('');
-    if (password.length < 6) { setError('Password must be at least 6 characters.'); return; }
-    if (password !== confirm) { setError('Passwords do not match.'); return; }
+
+    // Validation
+    if (password.length < 6) {
+      setError('Password must be at least 6 characters.');
+      return;
+    }
+    if (password !== confirm) {
+      setError('Passwords do not match. Please make sure both fields are the same.');
+      return;
+    }
+
     setLoading(true);
     const supabase = createClient();
-    const { error } = await supabase.auth.updateUser({ password });
-    if (error) { setError(error.message); setLoading(false); return; }
-    window.location.href = '/';
+
+    const { error: updateErr } = await supabase.auth.updateUser({ password });
+    if (updateErr) {
+      setError(updateErr.message);
+      setLoading(false);
+      return;
+    }
+
+    // Sign out so user must sign in with new password
+    await supabase.auth.signOut();
+    window.location.href = '/login?message=password_updated';
   }
+
+  const inputStyle = {
+    width: '100%', padding: '10px 14px', borderRadius: 10,
+    border: '1.5px solid #E5E7EB', fontSize: 14, outline: 'none',
+    boxSizing: 'border-box',
+  };
 
   return (
     <div style={{
@@ -42,25 +73,19 @@ export default function UpdatePasswordPage() {
         width: '100%', maxWidth: 380,
         boxShadow: '0 4px 24px rgba(124,58,237,0.10)',
       }}>
-        <h2 style={{ fontSize: 18, fontWeight: 700, color: '#1a1a2e', marginBottom: 4 }}>Set your password</h2>
-        <p style={{ fontSize: 13.5, color: '#6B7280', marginBottom: 24 }}>Choose a password to secure your account.</p>
+        <h2 style={{ fontSize: 18, fontWeight: 700, color: '#1a1a2e', marginBottom: 4 }}>Reset your password</h2>
+        <p style={{ fontSize: 13.5, color: '#6B7280', marginBottom: 24 }}>Enter your new password below.</p>
 
         <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
           <div>
             <label style={{ fontSize: 13, fontWeight: 600, color: '#374151', display: 'block', marginBottom: 5 }}>New password</label>
-            <input
-              type="password" value={password} onChange={e => setPassword(e.target.value)}
-              placeholder="At least 6 characters" required
-              style={{ width: '100%', padding: '10px 14px', borderRadius: 10, border: '1.5px solid #E5E7EB', fontSize: 14, outline: 'none', boxSizing: 'border-box' }}
-            />
+            <input type="password" value={password} onChange={e => setPassword(e.target.value)}
+              placeholder="At least 6 characters" required autoFocus style={inputStyle} />
           </div>
           <div>
-            <label style={{ fontSize: 13, fontWeight: 600, color: '#374151', display: 'block', marginBottom: 5 }}>Confirm password</label>
-            <input
-              type="password" value={confirm} onChange={e => setConfirm(e.target.value)}
-              placeholder="Same password again" required
-              style={{ width: '100%', padding: '10px 14px', borderRadius: 10, border: '1.5px solid #E5E7EB', fontSize: 14, outline: 'none', boxSizing: 'border-box' }}
-            />
+            <label style={{ fontSize: 13, fontWeight: 600, color: '#374151', display: 'block', marginBottom: 5 }}>Confirm new password</label>
+            <input type="password" value={confirm} onChange={e => setConfirm(e.target.value)}
+              placeholder="Type the same password again" required style={inputStyle} />
           </div>
 
           {error && (
@@ -76,7 +101,7 @@ export default function UpdatePasswordPage() {
             cursor: loading ? 'not-allowed' : 'pointer',
             opacity: loading ? 0.7 : 1, marginTop: 4,
           }}>
-            {loading ? 'Saving…' : 'Set password & sign in'}
+            {loading ? 'Saving...' : 'Update password'}
           </button>
         </form>
       </div>

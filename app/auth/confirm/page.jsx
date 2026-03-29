@@ -2,8 +2,24 @@
 import { useEffect, useState } from 'react';
 import { createClient } from '../../../lib/supabase/client';
 
+/*
+  /auth/confirm — Client-side session establishment
+
+  Supabase email links (invite, recovery, magic link) redirect here.
+  Depending on project settings, the token arrives as:
+    1. ?token_hash=xxx&type=invite|recovery     (OTP flow)
+    2. ?code=xxx                                (PKCE flow)
+    3. #access_token=xxx&refresh_token=yyy      (implicit flow)
+
+  After establishing the session, routes the user to the right page:
+    - type=recovery → /update-password
+    - type=invite or no profile name → /confirm-profile
+    - otherwise → /
+*/
+
 export default function ConfirmPage() {
   const [status, setStatus] = useState('verifying');
+  const [errorMsg, setErrorMsg] = useState('');
 
   useEffect(() => {
     async function verify() {
@@ -15,41 +31,44 @@ export default function ConfirmPage() {
       const code = searchParams.get('code');
       const accessToken = hashParams.get('access_token');
       const refreshToken = hashParams.get('refresh_token');
-      const inviterId = searchParams.get('inviter');
-      const friendId = searchParams.get('friend');
 
       const supabase = createClient();
       let error = null;
 
       if (tokenHash && type) {
-        // token_hash flow (inviteUserByEmail, some recovery links)
+        // OTP flow — inviteUserByEmail and some recovery links
         ({ error } = await supabase.auth.verifyOtp({ token_hash: tokenHash, type }));
       } else if (accessToken && refreshToken) {
-        // Implicit/hash flow (recovery emails from server-side resetPasswordForEmail)
-        ({ error: error } = await supabase.auth.setSession({ access_token: accessToken, refresh_token: refreshToken }));
+        // Implicit/hash flow
+        ({ error } = await supabase.auth.setSession({ access_token: accessToken, refresh_token: refreshToken }));
       } else if (code) {
-        // PKCE code flow
-        ({ error: error } = await supabase.auth.exchangeCodeForSession(code));
+        // PKCE code flow (resetPasswordForEmail from browser)
+        ({ error } = await supabase.auth.exchangeCodeForSession(code));
       } else {
+        // No token at all — redirect to login
         window.location.href = '/login';
         return;
       }
 
       if (error) {
-        console.error('verifyOtp error:', error);
+        console.error('Auth confirm error:', error);
+        setErrorMsg(error.message || 'Verification failed');
         setStatus('error');
         return;
       }
 
-      const { data: { user: currentUser } } = await supabase.auth.getUser();
-      const hasName = currentUser?.user_metadata?.name;
+      // Session established — determine where to route
+      const { data: { user } } = await supabase.auth.getUser();
+      const hasName = user?.user_metadata?.name;
 
-      if (type === 'recovery' || (accessToken && !hasName)) {
-        // Recovery link: go to update-password if already set up, complete-profile if new
-        window.location.href = hasName ? '/update-password' : '/complete-profile';
-      } else if (type === 'invite') {
-        window.location.href = '/complete-profile';
+      if (type === 'recovery') {
+        // Password reset — always go to update-password
+        window.location.href = '/update-password';
+      } else if (type === 'invite' || !hasName) {
+        // New user from invite OR user with no name — complete profile
+        window.location.href = '/confirm-profile';
       } else {
+        // Existing user with profile — go to app
         window.location.href = '/';
       }
     }
@@ -71,10 +90,10 @@ export default function ConfirmPage() {
           boxShadow: '0 4px 24px rgba(124,58,237,0.10)',
           textAlign: 'center',
         }}>
-          <div style={{ fontSize: 32, marginBottom: 12 }}>⚠️</div>
-          <h2 style={{ fontSize: 18, fontWeight: 700, color: '#1a1a2e', marginBottom: 8 }}>Link expired</h2>
+          <div style={{ fontSize: 32, marginBottom: 12 }}>&#9888;&#65039;</div>
+          <h2 style={{ fontSize: 18, fontWeight: 700, color: '#1a1a2e', marginBottom: 8 }}>Link expired or invalid</h2>
           <p style={{ fontSize: 13.5, color: '#6B7280', marginBottom: 20 }}>
-            This link has expired or already been used. Request a new one from the sign-in page.
+            This link has expired or has already been used. Please request a new one.
           </p>
           <a href="/login" style={{
             display: 'inline-block',
@@ -94,7 +113,7 @@ export default function ConfirmPage() {
       background: 'linear-gradient(135deg, #EDE9FE 0%, #F5F3FF 60%, #FCE7F3 100%)',
     }}>
       <div style={{ textAlign: 'center', color: '#7C3AED', fontSize: 15, fontWeight: 600 }}>
-        Verifying…
+        Verifying...
       </div>
     </div>
   );

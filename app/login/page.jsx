@@ -1,10 +1,9 @@
 'use client';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { createClient } from '../../lib/supabase/client';
 
 export default function LoginPage() {
   const [mode, setMode] = useState('signin'); // 'signin' | 'signup' | 'reset'
-  const isInvited = typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('invited') === '1';
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -14,34 +13,66 @@ export default function LoginPage() {
 
   const supabase = createClient();
 
+  // Check URL for success messages (e.g., after password reset)
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('message') === 'password_updated') {
+      setMessage('Password updated! Sign in with your new password.');
+    }
+  }, []);
+
   async function handleSubmit(e) {
     e.preventDefault();
-    setError(''); setMessage(''); setLoading(true);
+    setError('');
+    setMessage('');
+    setLoading(true);
 
-    if (mode === 'reset') {
-      const { error } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: `${window.location.origin}/auth/confirm`,
-      });
-      if (error) { setError(error.message); setLoading(false); return; }
-      setMessage('Check your email for a password reset link.');
-    } else if (mode === 'signup') {
-      const { error } = await supabase.auth.signUp({
-        email, password, options: { data: { name } },
-      });
-      if (error) { setError(error.message); setLoading(false); return; }
-      setMessage('Check your email to confirm your account, then sign in.');
-      setMode('signin');
-    } else {
-      const { data, error } = await supabase.auth.signInWithPassword({ email, password });
-      if (error) { setError(error.message); setLoading(false); return; }
-      // Auto-link any pending invites for this email (server-side to bypass RLS)
-      if (data.user) {
-        await fetch('/api/link-accounts', { method: 'POST' });
+    try {
+      if (mode === 'reset') {
+        // ── Forgot password: send reset email ──
+        const { error: resetErr } = await supabase.auth.resetPasswordForEmail(email, {
+          redirectTo: `${window.location.origin}/auth/confirm`,
+        });
+        if (resetErr) { setError(resetErr.message); return; }
+        setMessage('Check your email for a password reset link.');
+
+      } else if (mode === 'signup') {
+        // ── Sign up ──
+        if (!name.trim()) { setError('Please enter your name.'); return; }
+        if (password.length < 6) { setError('Password must be at least 6 characters.'); return; }
+        const { error: signUpErr } = await supabase.auth.signUp({
+          email,
+          password,
+          options: { data: { name: name.trim() } },
+        });
+        if (signUpErr) { setError(signUpErr.message); return; }
+        setMessage('Check your email to confirm your account, then sign in.');
+        setMode('signin');
+
+      } else {
+        // ── Sign in ──
+        const { data, error: signInErr } = await supabase.auth.signInWithPassword({ email, password });
+        if (signInErr) {
+          setError('Invalid email or password. Forgot your password?');
+          return;
+        }
+        // Auto-accept any pending invitations for this email
+        if (data.user) {
+          await fetch('/api/accept-invite', { method: 'POST' }).catch(() => {});
+        }
+        window.location.href = '/';
+        return;
       }
-      window.location.href = '/';
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   }
+
+  const inputStyle = {
+    width: '100%', padding: '10px 14px', borderRadius: 10,
+    border: '1.5px solid #E5E7EB', fontSize: 14, outline: 'none',
+    boxSizing: 'border-box',
+  };
 
   return (
     <div style={{
@@ -71,86 +102,71 @@ export default function LoginPage() {
         <h2 style={{ fontSize: 18, fontWeight: 700, color: '#1a1a2e', marginBottom: 4 }}>
           {mode === 'signin' ? 'Welcome back' : mode === 'signup' ? 'Create your account' : 'Reset your password'}
         </h2>
-        <p style={{ fontSize: 13.5, color: '#6B7280', marginBottom: isInvited ? 12 : 24 }}>
-          {mode === 'signin' ? 'Sign in to your account' : mode === 'signup' ? 'Start nurturing your friendships' : 'We\'ll email you a reset link'}
+        <p style={{ fontSize: 13.5, color: '#6B7280', marginBottom: 24 }}>
+          {mode === 'signin' ? 'Sign in to your account'
+            : mode === 'signup' ? 'Start nurturing your friendships'
+            : "Enter your email and we'll send you a reset link"}
         </p>
-        {isInvited && (
-          <div style={{ background: '#FFF8E1', border: '1px solid #F9A825', borderRadius: 8, padding: '9px 12px', marginBottom: 16, fontSize: 13, color: '#7A5C00' }}>
-            You were invited! Check your email for the invite link — click it to set your password and sign in.
-          </div>
-        )}
 
         <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
           {mode === 'signup' && (
             <div>
               <label style={{ fontSize: 13, fontWeight: 600, color: '#374151', display: 'block', marginBottom: 5 }}>Your name</label>
-              <input
-                type="text" value={name} onChange={e => setName(e.target.value)}
-                placeholder="What should friends call you?"
-                required
-                style={{
-                  width: '100%', padding: '10px 14px', borderRadius: 10,
-                  border: '1.5px solid #E5E7EB', fontSize: 14, outline: 'none',
-                  boxSizing: 'border-box',
-                }}
-              />
+              <input type="text" value={name} onChange={e => setName(e.target.value)}
+                placeholder="What should friends call you?" required style={inputStyle} />
             </div>
           )}
           <div>
             <label style={{ fontSize: 13, fontWeight: 600, color: '#374151', display: 'block', marginBottom: 5 }}>Email</label>
-            <input
-              type="email" value={email} onChange={e => setEmail(e.target.value)}
-              placeholder="you@example.com"
-              required
-              style={{
-                width: '100%', padding: '10px 14px', borderRadius: 10,
-                border: '1.5px solid #E5E7EB', fontSize: 14, outline: 'none',
-                boxSizing: 'border-box',
-              }}
-            />
+            <input type="email" value={email} onChange={e => setEmail(e.target.value)}
+              placeholder="you@example.com" required style={inputStyle} />
           </div>
           {mode !== 'reset' && (
             <div>
               <label style={{ fontSize: 13, fontWeight: 600, color: '#374151', display: 'block', marginBottom: 5 }}>Password</label>
-              <input
-                type="password" value={password} onChange={e => setPassword(e.target.value)}
-                placeholder={mode === 'signup' ? 'At least 6 characters' : '••••••••'}
-                required
-                style={{
-                  width: '100%', padding: '10px 14px', borderRadius: 10,
-                  border: '1.5px solid #E5E7EB', fontSize: 14, outline: 'none',
-                  boxSizing: 'border-box',
-                }}
-              />
+              <input type="password" value={password} onChange={e => setPassword(e.target.value)}
+                placeholder={mode === 'signup' ? 'At least 6 characters' : 'Your password'} required style={inputStyle} />
             </div>
           )}
 
+          {/* Error message */}
           {error && (
             <div style={{ background: '#FEF2F2', border: '1px solid #FECACA', borderRadius: 8, padding: '9px 12px', fontSize: 13, color: '#DC2626' }}>
               {error}
+              {/* If sign-in error, offer forgot password shortcut */}
+              {mode === 'signin' && error.includes('Forgot') && (
+                <button
+                  type="button"
+                  onClick={() => { setMode('reset'); setError(''); setMessage(''); }}
+                  style={{ display: 'block', marginTop: 6, background: 'none', border: 'none', color: '#7C3AED', fontWeight: 700, cursor: 'pointer', padding: 0, fontSize: 13 }}
+                >
+                  Reset my password
+                </button>
+              )}
             </div>
           )}
+          {/* Success message */}
           {message && (
             <div style={{ background: '#F0FDF4', border: '1px solid #BBF7D0', borderRadius: 8, padding: '9px 12px', fontSize: 13, color: '#16A34A' }}>
               {message}
             </div>
           )}
 
-          <button
-            type="submit"
-            disabled={loading}
-            style={{
-              background: 'linear-gradient(135deg, #7C3AED, #9F67E4)',
-              color: 'white', border: 'none', borderRadius: 12,
-              padding: '12px', fontSize: 15, fontWeight: 700,
-              cursor: loading ? 'not-allowed' : 'pointer',
-              opacity: loading ? 0.7 : 1, marginTop: 4,
-            }}
-          >
-            {loading ? 'Please wait…' : mode === 'signin' ? 'Sign in' : 'Create account'}
+          <button type="submit" disabled={loading} style={{
+            background: 'linear-gradient(135deg, #7C3AED, #9F67E4)',
+            color: 'white', border: 'none', borderRadius: 12,
+            padding: '12px', fontSize: 15, fontWeight: 700,
+            cursor: loading ? 'not-allowed' : 'pointer',
+            opacity: loading ? 0.7 : 1, marginTop: 4,
+          }}>
+            {loading ? 'Please wait...'
+              : mode === 'signin' ? 'Sign in'
+              : mode === 'signup' ? 'Create account'
+              : 'Send reset link'}
           </button>
         </form>
 
+        {/* Mode toggle links */}
         <div style={{ marginTop: 20, textAlign: 'center', fontSize: 13.5, color: '#6B7280' }}>
           {mode === 'reset' ? (
             <button onClick={() => { setMode('signin'); setError(''); setMessage(''); }}
