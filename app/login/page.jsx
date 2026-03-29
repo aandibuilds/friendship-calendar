@@ -20,7 +20,7 @@ export default function LoginPage() {
 
     if (mode === 'reset') {
       const { error } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: `${window.location.origin}/auth/callback`,
+        redirectTo: `${window.location.origin}/auth/confirm`,
       });
       if (error) { setError(error.message); setLoading(false); return; }
       setMessage('Check your email for a password reset link.');
@@ -34,21 +34,9 @@ export default function LoginPage() {
     } else {
       const { data, error } = await supabase.auth.signInWithPassword({ email, password });
       if (error) { setError(error.message); setLoading(false); return; }
-      // Auto-link any pending invites for this email
+      // Auto-link any pending invites for this email (server-side to bypass RLS)
       if (data.user) {
-        const { data: invites } = await supabase
-          .from('friend_invites')
-          .select('inviter_id, friend_id')
-          .eq('email', email)
-          .eq('accepted', false);
-        if (invites?.length) {
-          for (const inv of invites) {
-            await supabase.from('friends').update({ linked_user_id: data.user.id })
-              .eq('id', inv.friend_id).eq('user_id', inv.inviter_id);
-            await supabase.from('friend_invites').update({ accepted: true })
-              .eq('friend_id', inv.friend_id).eq('inviter_id', inv.inviter_id);
-          }
-        }
+        await fetch('/api/link-accounts', { method: 'POST' });
       }
       window.location.href = '/';
     }
