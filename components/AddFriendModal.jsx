@@ -20,7 +20,10 @@ export default function AddFriendModal({ onClose, onSave, prefill }) {
     if (!name.trim()) { showToast('Please enter a name'); return; }
     onSave({ id: `f-${Date.now()}`, name: name.trim(), email: email.trim(), color, tags, cadence, notes: notes.trim(), inviteDates: [] });
     onClose();
-    showToast(`${name.trim()} added.`);
+    if (!email.trim()) {
+      showToast(`${name.trim()} added.`);
+    }
+    // When email is provided, the parent (addFriend) shows the invite-specific toast
   }
 
   return (

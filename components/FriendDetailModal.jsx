@@ -181,11 +181,64 @@ export default function FriendDetailModal({ friend: f, profile, onClose, onUpdat
         {/* INVITE TO APP */}
         {!f.linkedUserId && (
           <div style={{ margin: '16px 0 4px', padding: '14px 16px', background: 'var(--plum-pale)', borderRadius: 12, border: '1px solid rgba(124,58,237,0.15)' }}>
-            <div style={{ fontWeight: 600, fontSize: 13.5, marginBottom: 6 }}>
-              {inviteState === 'sent' ? '✓ Invite sent!' : `Invite ${f.name} to the app`}
-            </div>
-            {inviteState !== 'sent' && (
+            {f.email && inviteState !== 'sent' && inviteState !== 'sending' && inviteState !== 'error' ? (
               <>
+                {/* Email already on file (invite was auto-sent on add) — show status + resend */}
+                <div style={{ fontWeight: 600, fontSize: 13.5, marginBottom: 4 }}>
+                  Invite pending
+                </div>
+                <div style={{ fontSize: 12.5, color: 'var(--ink-muted)', marginBottom: 10 }}>
+                  An invite was sent to {f.email}. Once they accept, they'll be connected here.
+                </div>
+                <button
+                  className="btn btn-primary btn-sm"
+                  disabled={inviteState === 'sending'}
+                  onClick={async () => {
+                    setInviteState('sending');
+                    try {
+                      const res = await fetch('/api/invite-friend', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ email: f.email.trim(), friendId: f.id, friendName: f.name }),
+                      });
+                      const data = await res.json();
+                      if (data.error) throw new Error(data.error);
+                      if (data.alreadyFriends) {
+                        showToast(`${f.name} is already connected!`);
+                      } else if (data.manualLink) {
+                        navigator.clipboard.writeText(data.manualLink).then(() => {
+                          showToast('Invite link copied! Share it with your friend.');
+                        }).catch(() => {
+                          prompt('Copy this invite link:', data.manualLink);
+                        });
+                      } else {
+                        showToast('Invite resent!');
+                      }
+                      setInviteState('sent');
+                    } catch (err) {
+                      showToast('Failed to resend invite — try again.');
+                      setInviteState('error');
+                    }
+                  }}
+                >
+                  Resend invite
+                </button>
+              </>
+            ) : inviteState === 'sent' ? (
+              <>
+                <div style={{ fontWeight: 600, fontSize: 13.5, marginBottom: 4 }}>
+                  ✓ Invite sent!
+                </div>
+                <div style={{ fontSize: 12.5, color: 'var(--ink-muted)' }}>
+                  Invite created for {inviteEmail || f.email}. Once they accept, they'll be connected here.
+                </div>
+              </>
+            ) : (
+              <>
+                {/* No email on file — show email input + send */}
+                <div style={{ fontWeight: 600, fontSize: 13.5, marginBottom: 6 }}>
+                  Invite {f.name} to the app
+                </div>
                 <div style={{ fontSize: 12.5, color: 'var(--ink-muted)', marginBottom: 10 }}>
                   They'll get a link to join and will be connected to your friend list.
                 </div>
@@ -214,7 +267,6 @@ export default function FriendDetailModal({ friend: f, profile, onClose, onUpdat
                         if (data.alreadyFriends) {
                           showToast(`${f.name} is already connected!`);
                         } else if (data.manualLink) {
-                          // Email service not configured — copy link instead
                           navigator.clipboard.writeText(data.manualLink).then(() => {
                             showToast('Invite link copied! Share it with your friend.');
                           }).catch(() => {
@@ -233,11 +285,6 @@ export default function FriendDetailModal({ friend: f, profile, onClose, onUpdat
                   </button>
                 </div>
               </>
-            )}
-            {inviteState === 'sent' && (
-              <div style={{ fontSize: 12.5, color: 'var(--ink-muted)' }}>
-                Invite created for {inviteEmail}. Once they accept, they'll be connected here.
-              </div>
             )}
           </div>
         )}

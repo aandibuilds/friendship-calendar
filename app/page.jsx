@@ -107,6 +107,35 @@ function AppInner() {
   async function addFriend(f) {
     const saved = await db.addFriend(userId, f);
     setFriends(prev => [...prev, saved]);
+
+    // Auto-trigger invite if email was provided
+    if (f.email?.trim()) {
+      try {
+        const res = await fetch('/api/invite-friend', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email: f.email.trim(), friendId: saved.id, friendName: saved.name }),
+        });
+        const data = await res.json();
+        if (data.error) {
+          showToast('Friend added, but invite failed — resend from their card.');
+        } else if (data.alreadyFriends) {
+          showToast(`${saved.name} is already connected!`);
+        } else if (data.manualLink) {
+          // No email service — copy link to clipboard
+          try {
+            await navigator.clipboard.writeText(data.manualLink);
+            showToast('Invite link copied! Share it with your friend.');
+          } catch {
+            prompt('Copy this invite link:', data.manualLink);
+          }
+        } else {
+          showToast(`Invite sent to ${f.email.trim()}!`);
+        }
+      } catch {
+        showToast('Friend added, but invite failed — resend from their card.');
+      }
+    }
   }
 
   async function deleteFriend(id) {
