@@ -8,6 +8,7 @@ const ALL_TAGS = ['College','Work','Family','Neighbors','Travel','Childhood'];
 export default function AddFriendModal({ onClose, onSave, prefill }) {
   const showToast = useToast();
   const [name, setName] = useState(prefill?.name || '');
+  const [email, setEmail] = useState(prefill?.email || '');
   const [notes, setNotes] = useState(prefill?.notes || '');
   const [cadence, setCadence] = useState(30);
   const [color, setColor] = useState(prefill?.color || '#5B4FFF');
@@ -17,7 +18,7 @@ export default function AddFriendModal({ onClose, onSave, prefill }) {
 
   function save() {
     if (!name.trim()) { showToast('Please enter a name'); return; }
-    onSave({ id: Date.now(), name: name.trim(), color, tags, cadence, notes: notes.trim(), hangouts: [] });
+    onSave({ id: `f-${Date.now()}`, name: name.trim(), email: email.trim(), color, tags, cadence, notes: notes.trim(), inviteDates: [] });
     onClose();
     showToast(`${name.trim()} added.`);
   }
@@ -33,6 +34,10 @@ export default function AddFriendModal({ onClose, onSave, prefill }) {
           <div className="form-group">
             <label className="form-label">Name *</label>
             <input className="input-full" value={name} onChange={e => setName(e.target.value)} placeholder="e.g. Sarah Chen" autoFocus onKeyDown={e => e.key === 'Enter' && save()} />
+          </div>
+          <div className="form-group">
+            <label className="form-label">Email <span style={{ fontWeight: 400, color: 'var(--ink-muted)' }}>(optional — to invite them to the app)</span></label>
+            <input className="input-full" type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="friend@example.com" />
           </div>
           <div className="form-group">
             <label className="form-label">Tags</label>

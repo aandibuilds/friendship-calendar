@@ -12,6 +12,8 @@ export default function FriendDetailModal({ friend: f, profile, onClose, onUpdat
   const [aiPanel, setAiPanel] = useState(null); // null | 'loading-convo' | 'loading-ideas' | {type, items}
   const [convoUsed, setConvoUsed] = useState(false);
   const [ideasUsed, setIdeasUsed] = useState(false);
+  const [inviteEmail, setInviteEmail] = useState(f.email || '');
+  const [inviteState, setInviteState] = useState(''); // '' | 'sending' | 'sent' | 'error'
 
   useEffect(() => {
     setHangoutDate(new Date().toISOString().split('T')[0]);
@@ -175,6 +177,68 @@ export default function FriendDetailModal({ friend: f, profile, onClose, onUpdat
             </div>
           </div>
         </div>
+
+        {/* INVITE TO APP */}
+        {!f.linkedUserId && (
+          <div style={{ margin: '16px 0 4px', padding: '14px 16px', background: 'var(--plum-pale)', borderRadius: 12, border: '1px solid rgba(124,58,237,0.15)' }}>
+            <div style={{ fontWeight: 600, fontSize: 13.5, marginBottom: 6 }}>
+              {inviteState === 'sent' ? '✓ Invite sent!' : `Invite ${f.name} to the app`}
+            </div>
+            {inviteState !== 'sent' && (
+              <>
+                <div style={{ fontSize: 12.5, color: 'var(--ink-muted)', marginBottom: 10 }}>
+                  They'll get a link to join and will be connected to your friend list.
+                </div>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <input
+                    className="input-full"
+                    type="email"
+                    placeholder="their@email.com"
+                    value={inviteEmail}
+                    onChange={e => setInviteEmail(e.target.value)}
+                    style={{ flex: 1, fontSize: 13 }}
+                  />
+                  <button
+                    className="btn btn-primary btn-sm"
+                    disabled={inviteState === 'sending' || !inviteEmail.trim()}
+                    onClick={async () => {
+                      setInviteState('sending');
+                      try {
+                        const res = await fetch('/api/invite-friend', {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({ email: inviteEmail.trim(), friendId: f.id, friendName: f.name }),
+                        });
+                        const data = await res.json();
+                        if (data.error) throw new Error(data.error);
+                        if (data.alreadyExists) {
+                          showToast(`${f.name} already has an account — they can sign in directly.`);
+                        }
+                        setInviteState('sent');
+                        if (inviteEmail !== f.email) onUpdate({ ...f, email: inviteEmail.trim() });
+                      } catch (err) {
+                        showToast('Failed to send invite — try again.');
+                        setInviteState('error');
+                      }
+                    }}
+                  >
+                    {inviteState === 'sending' ? '…' : 'Send'}
+                  </button>
+                </div>
+              </>
+            )}
+            {inviteState === 'sent' && (
+              <div style={{ fontSize: 12.5, color: 'var(--ink-muted)' }}>
+                An email was sent to {inviteEmail}. Once they sign up, they'll be connected here.
+              </div>
+            )}
+          </div>
+        )}
+        {f.linkedUserId && (
+          <div style={{ margin: '16px 0 4px', padding: '10px 14px', background: '#F0FDF4', borderRadius: 10, border: '1px solid #BBF7D0', fontSize: 13, color: '#16A34A', fontWeight: 600 }}>
+            ✓ {f.name} is on Friendship Calendar
+          </div>
+        )}
 
         <div className="modal-footer">
           <button className="btn btn-ghost" onClick={() => { if (confirm('Remove this friend?')) { onDelete(f.id); onClose(); } }}>Remove</button>
