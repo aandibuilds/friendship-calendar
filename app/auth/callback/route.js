@@ -24,31 +24,30 @@ export async function GET(request) {
     }
   );
 
-  let sessionError = null;
+  // token_hash links (invites, password reset) must be verified client-side
+  // so the browser Supabase client can store the session properly
+  if (tokenHash && type) {
+    const confirmUrl = new URL(`${origin}/auth/confirm`);
+    confirmUrl.searchParams.set('token_hash', tokenHash);
+    confirmUrl.searchParams.set('type', type);
+    if (inviterId) confirmUrl.searchParams.set('inviter', inviterId);
+    if (friendId) confirmUrl.searchParams.set('friend', friendId);
+    return NextResponse.redirect(confirmUrl.toString());
+  }
 
-  if (code) {
-    // Standard OAuth / magic link with PKCE
-    const { error } = await supabase.auth.exchangeCodeForSession(code);
-    sessionError = error;
-  } else if (tokenHash && type) {
-    // Invite link — uses token_hash + type instead of code
-    const { error } = await supabase.auth.verifyOtp({ token_hash: tokenHash, type });
-    sessionError = error;
-  } else {
+  if (!code) {
     return NextResponse.redirect(`${origin}/login`);
   }
+
+  // Standard OAuth / magic link with PKCE
+  const { error: sessionError } = await supabase.auth.exchangeCodeForSession(code);
 
   if (sessionError) {
     console.error('Auth callback error:', sessionError);
     return NextResponse.redirect(`${origin}/login`);
   }
 
-  // Password reset — send to update-password page
-  if (type === 'recovery') {
-    return NextResponse.redirect(`${origin}/update-password`);
-  }
-
-  // Link accounts if this came from a friend invite
+  // Link accounts if this came from a friend invite (code-based flow)
   if (inviterId && friendId) {
     const { data: { user } } = await supabase.auth.getUser();
     if (user) {
