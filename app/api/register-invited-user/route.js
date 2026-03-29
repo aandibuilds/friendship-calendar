@@ -136,18 +136,28 @@ export async function POST(req) {
       .single();
 
     if (inviterProfile) {
-      await admin.from('friends').insert({
-        id: `f-inv-${Date.now()}`,
-        user_id: userId,
-        name: inviterProfile.name || 'Friend',
-        email: inviterProfile.email || '',
-        color: inviterProfile.avatar_color || '#7C3AED',
-        tags: [],
-        notes: '',
-        cadence: 30,
-        invite_dates: [],
-        linked_user_id: invitation.inviter_id,
-      });
+      // Check if invitee already has a friend card for this inviter
+      const { data: existing } = await admin
+        .from('friends')
+        .select('id')
+        .eq('user_id', userId)
+        .eq('linked_user_id', invitation.inviter_id)
+        .single();
+
+      if (!existing) {
+        await admin.from('friends').insert({
+          id: `f-inv-${Date.now()}`,
+          user_id: userId,
+          name: inviterProfile.name || 'Friend',
+          email: inviterProfile.email || '',
+          color: inviterProfile.avatar_color || '#7C3AED',
+          tags: [],
+          notes: '',
+          cadence: 30,
+          invite_dates: [],
+          linked_user_id: invitation.inviter_id,
+        });
+      }
     }
   } catch (err) {
     // Non-fatal — the invitee just won't see the inviter in their list initially
