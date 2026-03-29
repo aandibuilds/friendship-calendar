@@ -43,6 +43,11 @@ export async function GET(request) {
     return NextResponse.redirect(`${origin}/login`);
   }
 
+  // Password reset — send to update-password page
+  if (type === 'recovery') {
+    return NextResponse.redirect(`${origin}/update-password`);
+  }
+
   // Link accounts if this came from a friend invite
   if (inviterId && friendId) {
     const { data: { user } } = await supabase.auth.getUser();

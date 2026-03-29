@@ -25,7 +25,7 @@ export async function middleware(request) {
   const { data: { user } } = await supabase.auth.getUser();
 
   const { pathname } = request.nextUrl;
-  const isAuthPage = pathname.startsWith('/login');
+  const isAuthPage = pathname.startsWith('/login') || pathname.startsWith('/update-password');
 
   // Redirect unauthenticated users to login
   if (!user && !isAuthPage) {
