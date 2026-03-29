@@ -42,10 +42,47 @@ export async function POST() {
 
   if (invitations?.length) {
     for (const inv of invitations) {
-      // Mark accepted — DB trigger handles friendship creation + linked_user_id
+      // Mark accepted — DB trigger handles friendships table + linked_user_id
       await admin.from('invitations')
         .update({ status: 'accepted' })
         .eq('id', inv.id);
+
+      // Create a friend card for the invitee → inviter
+      // (The inviter already has a friend card; the invitee needs one too)
+      try {
+        const { data: inviterProfile } = await admin
+          .from('profiles')
+          .select('name, email, avatar_color')
+          .eq('id', inv.inviter_id)
+          .single();
+
+        if (inviterProfile) {
+          // Check if invitee already has a friend card for this inviter
+          const { data: existing } = await admin
+            .from('friends')
+            .select('id')
+            .eq('user_id', user.id)
+            .eq('linked_user_id', inv.inviter_id)
+            .single();
+
+          if (!existing) {
+            await admin.from('friends').insert({
+              id: `f-inv-${Date.now()}-${inv.inviter_id.slice(0, 8)}`,
+              user_id: user.id,
+              name: inviterProfile.name || 'Friend',
+              email: inviterProfile.email || '',
+              color: inviterProfile.avatar_color || '#7C3AED',
+              tags: [],
+              notes: '',
+              cadence: 30,
+              invite_dates: [],
+              linked_user_id: inv.inviter_id,
+            });
+          }
+        }
+      } catch (err) {
+        console.error('Create reverse friend card error:', err);
+      }
 
       linked++;
     }

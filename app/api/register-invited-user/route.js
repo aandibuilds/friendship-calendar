@@ -112,9 +112,8 @@ export async function POST(req) {
 
   // ── Accept invitation ───────────────────────────────────────
   // Setting status to 'accepted' fires the DB trigger which:
-  //   1. Creates bidirectional friendships
-  //   2. Updates friends.linked_user_id
-  // No manual friendship creation needed here.
+  //   1. Creates bidirectional friendships rows
+  //   2. Updates friends.linked_user_id on the inviter's friend card
   const { error: acceptErr } = await admin
     .from('invitations')
     .update({ status: 'accepted' })
@@ -123,6 +122,36 @@ export async function POST(req) {
   if (acceptErr) {
     console.error('Accept invitation error:', acceptErr);
     return NextResponse.json({ error: 'Account created but invitation acceptance failed. Try signing in.' }, { status: 500 });
+  }
+
+  // ── Create a friend card for the invited user → inviter ────
+  // The inviter already has a friends row for the invitee (created when
+  // they added the friend). But the invitee has NO friends row for the
+  // inviter — the app reads from the `friends` table, not `friendships`.
+  try {
+    const { data: inviterProfile } = await admin
+      .from('profiles')
+      .select('name, email, avatar_color')
+      .eq('id', invitation.inviter_id)
+      .single();
+
+    if (inviterProfile) {
+      await admin.from('friends').insert({
+        id: `f-inv-${Date.now()}`,
+        user_id: userId,
+        name: inviterProfile.name || 'Friend',
+        email: inviterProfile.email || '',
+        color: inviterProfile.avatar_color || '#7C3AED',
+        tags: [],
+        notes: '',
+        cadence: 30,
+        invite_dates: [],
+        linked_user_id: invitation.inviter_id,
+      });
+    }
+  } catch (err) {
+    // Non-fatal — the invitee just won't see the inviter in their list initially
+    console.error('Create reverse friend card error:', err);
   }
 
   return NextResponse.json({ success: true, email });
