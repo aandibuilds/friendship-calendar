@@ -3,23 +3,18 @@ import { useEffect, useState } from 'react';
 import { createClient } from '../../../lib/supabase/client';
 
 /*
-  /auth/confirm — Client-side session establishment
+  /auth/confirm — Session establishment for Supabase email links
 
-  Supabase email links (invite, recovery, magic link) redirect here.
-  Depending on project settings, the token arrives as:
-    1. ?token_hash=xxx&type=invite|recovery     (OTP flow)
-    2. ?code=xxx                                (PKCE flow)
-    3. #access_token=xxx&refresh_token=yyy      (implicit flow)
+  Used for: password reset links, email confirmation links.
+  NOT used for invite links (those go directly to /confirm-profile?token=XYZ).
 
-  After establishing the session, routes the user to the right page:
+  After establishing the session, routes to:
     - type=recovery → /update-password
-    - type=invite or no profile name → /confirm-profile
-    - otherwise → /
+    - all other → /
 */
 
 export default function ConfirmPage() {
   const [status, setStatus] = useState('verifying');
-  const [errorMsg, setErrorMsg] = useState('');
 
   useEffect(() => {
     async function verify() {
@@ -36,39 +31,26 @@ export default function ConfirmPage() {
       let error = null;
 
       if (tokenHash && type) {
-        // OTP flow — inviteUserByEmail and some recovery links
         ({ error } = await supabase.auth.verifyOtp({ token_hash: tokenHash, type }));
       } else if (accessToken && refreshToken) {
-        // Implicit/hash flow
         ({ error } = await supabase.auth.setSession({ access_token: accessToken, refresh_token: refreshToken }));
       } else if (code) {
-        // PKCE code flow (resetPasswordForEmail from browser)
         ({ error } = await supabase.auth.exchangeCodeForSession(code));
       } else {
-        // No token at all — redirect to login
         window.location.href = '/login';
         return;
       }
 
       if (error) {
         console.error('Auth confirm error:', error);
-        setErrorMsg(error.message || 'Verification failed');
         setStatus('error');
         return;
       }
 
-      // Session established — determine where to route
-      const { data: { user } } = await supabase.auth.getUser();
-      const hasName = user?.user_metadata?.name;
-
+      // Route based on type
       if (type === 'recovery') {
-        // Password reset — always go to update-password
         window.location.href = '/update-password';
-      } else if (type === 'invite' || !hasName) {
-        // New user from invite OR user with no name — complete profile
-        window.location.href = '/confirm-profile';
       } else {
-        // Existing user with profile — go to app
         window.location.href = '/';
       }
     }

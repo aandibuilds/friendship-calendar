@@ -21,7 +21,6 @@ export async function middleware(request) {
     }
   );
 
-  // Refresh session so it doesn't expire
   const { data: { user } } = await supabase.auth.getUser();
 
   const { pathname } = request.nextUrl;
@@ -29,16 +28,29 @@ export async function middleware(request) {
   const isUpdatePassword = pathname.startsWith('/update-password');
   const isConfirmProfile = pathname.startsWith('/confirm-profile');
 
-  // These pages may be accessed with a session that was JUST established
-  // by /auth/confirm (via redirect). Allow them even if middleware can't
-  // see the session yet (cookie propagation timing).
+  // /confirm-profile?token=XYZ is PUBLIC — invited users haven't signed up yet
+  if (isConfirmProfile && request.nextUrl.searchParams.has('token')) {
+    return supabaseResponse;
+  }
+
+  // Unauthenticated → login (except allowed pages)
   if (!user && !isLoginPage && !isUpdatePassword && !isConfirmProfile) {
     return NextResponse.redirect(new URL('/login', request.url));
   }
 
-  // Authenticated users shouldn't see the login page
+  // Authenticated → don't show login page
   if (user && isLoginPage) {
     return NextResponse.redirect(new URL('/', request.url));
+  }
+
+  // Profile completion enforcement:
+  // Only redirect if completed_profile is EXPLICITLY false.
+  // undefined/null = existing user from before this feature → let them through.
+  if (user && !isConfirmProfile && !isUpdatePassword && !isLoginPage) {
+    const completed = user.user_metadata?.completed_profile;
+    if (completed === false) {
+      return NextResponse.redirect(new URL('/confirm-profile', request.url));
+    }
   }
 
   return supabaseResponse;

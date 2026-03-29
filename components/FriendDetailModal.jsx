@@ -211,8 +211,15 @@ export default function FriendDetailModal({ friend: f, profile, onClose, onUpdat
                         });
                         const data = await res.json();
                         if (data.error) throw new Error(data.error);
-                        if (data.alreadyExists) {
-                          showToast(`${f.name} already has an account — they can sign in directly.`);
+                        if (data.alreadyFriends) {
+                          showToast(`${f.name} is already connected!`);
+                        } else if (data.manualLink) {
+                          // Email service not configured — copy link instead
+                          navigator.clipboard.writeText(data.manualLink).then(() => {
+                            showToast('Invite link copied! Share it with your friend.');
+                          }).catch(() => {
+                            prompt('Copy this invite link:', data.manualLink);
+                          });
                         }
                         setInviteState('sent');
                         if (inviteEmail !== f.email) onUpdate({ ...f, email: inviteEmail.trim() });
@@ -222,14 +229,14 @@ export default function FriendDetailModal({ friend: f, profile, onClose, onUpdat
                       }
                     }}
                   >
-                    {inviteState === 'sending' ? '…' : 'Send'}
+                    {inviteState === 'sending' ? '...' : 'Send'}
                   </button>
                 </div>
               </>
             )}
             {inviteState === 'sent' && (
               <div style={{ fontSize: 12.5, color: 'var(--ink-muted)' }}>
-                An email was sent to {inviteEmail}. Once they sign up, they'll be connected here.
+                Invite created for {inviteEmail}. Once they accept, they'll be connected here.
               </div>
             )}
           </div>

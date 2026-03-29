@@ -2,15 +2,17 @@ import { NextResponse } from 'next/server';
 import { createServerClient } from '@supabase/ssr';
 import { cookies } from 'next/headers';
 import { createClient as createAdminClient } from '@supabase/supabase-js';
+import { sendInviteEmail } from '../../../lib/resend';
 
 /*
   POST /api/invite-friend
   Body: { email, friendId, friendName }
 
-  1. Creates an invitation record in our invitations table
-  2. Sends email via Supabase inviteUserByEmail (new users)
-     or resetPasswordForEmail (existing users)
-  3. Both redirect to /auth/confirm → /confirm-profile
+  1. Creates/updates an invitation record with a custom token
+  2. Sends a proper invite email via Resend
+  3. Falls back to a copyable link if Resend is not configured
+
+  NO LONGER uses inviteUserByEmail or resetPasswordForEmail.
 */
 
 export async function POST(req) {
@@ -19,7 +21,7 @@ export async function POST(req) {
     return NextResponse.json({ error: 'Missing email or friendId' }, { status: 400 });
   }
 
-  // Get calling user's session
+  // Authenticate calling user
   const cookieStore = await cookies();
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL,
@@ -29,81 +31,70 @@ export async function POST(req) {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
-  // Admin client (service role) for sending invites and bypassing RLS
+  // Admin client for bypassing RLS
   const admin = createAdminClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL,
     process.env.SUPABASE_SERVICE_ROLE_KEY,
     { auth: { autoRefreshToken: false, persistSession: false } }
   );
 
-  // ── Check for existing pending invite (prevent duplicates) ──
+  // ── Check for existing invitation ───────────────────────────
   const { data: existing } = await admin
     .from('invitations')
-    .select('id, status')
+    .select('id, status, token')
     .eq('inviter_id', user.id)
     .eq('invitee_email', email)
     .single();
 
-  if (existing && existing.status === 'pending') {
-    // Already has a pending invite — resend the email
-    return await sendInviteEmail(admin, email, user, friendId);
-  }
-
-  if (existing && existing.status === 'accepted') {
+  if (existing?.status === 'accepted') {
     return NextResponse.json({ alreadyFriends: true });
   }
 
-  // ── Create invitation record ────────────────────────────────
-  const { error: insertErr } = await admin
-    .from('invitations')
-    .upsert({
+  // ── Create or refresh invitation ────────────────────────────
+  let token;
+
+  if (existing) {
+    // Refresh existing invitation (resend)
+    token = crypto.randomUUID();
+    await admin.from('invitations').update({
+      status: 'pending',
+      token,
+      friend_id: friendId,
+      expires_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+    }).eq('id', existing.id);
+  } else {
+    // Create new invitation
+    token = crypto.randomUUID();
+    const { error: insertErr } = await admin.from('invitations').insert({
       inviter_id: user.id,
       invitee_email: email,
       friend_id: friendId,
       status: 'pending',
-      token: crypto.randomUUID(),
+      token,
       expires_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
-    }, { onConflict: 'inviter_id,invitee_email' });
-
-  if (insertErr) {
-    console.error('Insert invitation error:', insertErr);
-    return NextResponse.json({ error: insertErr.message }, { status: 500 });
+    });
+    if (insertErr) {
+      console.error('Insert invitation error:', insertErr);
+      return NextResponse.json({ error: insertErr.message }, { status: 500 });
+    }
   }
 
   // ── Send email ──────────────────────────────────────────────
-  return await sendInviteEmail(admin, email, user, friendId);
-}
+  const inviterName = user.user_metadata?.name || 'A friend';
+  const emailResult = await sendInviteEmail({ to: email, inviterName, token });
 
-async function sendInviteEmail(admin, email, user, friendId) {
-  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://friendship-calendar.vercel.app';
-  const confirmUrl = `${siteUrl}/auth/confirm`;
-
-  // Try inviteUserByEmail first (creates account + sends email for new users)
-  const { error: inviteErr } = await admin.auth.admin.inviteUserByEmail(email, {
-    redirectTo: confirmUrl,
-    data: {
-      invited_by: user.id,
-      friend_id: friendId,
-      inviter_name: user.user_metadata?.name || 'A friend',
-    },
-  });
-
-  if (!inviteErr) {
+  if (emailResult.sent) {
     return NextResponse.json({ success: true });
   }
 
-  // User already has an account — send a recovery/login link instead
-  if (inviteErr.message?.includes('already been registered')) {
-    const { error: resetErr } = await admin.auth.resetPasswordForEmail(email, {
-      redirectTo: confirmUrl,
-    });
-    if (resetErr) {
-      console.error('resetPasswordForEmail error:', resetErr);
-      return NextResponse.json({ error: resetErr.message }, { status: 500 });
-    }
-    return NextResponse.json({ success: true, existingUser: true });
-  }
+  // Email not sent (no API key or send failed) — return link for manual sharing
+  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://friendship-calendar.vercel.app';
+  const inviteLink = `${siteUrl}/confirm-profile?token=${token}`;
 
-  console.error('inviteUserByEmail error:', inviteErr);
-  return NextResponse.json({ error: inviteErr.message }, { status: 500 });
+  return NextResponse.json({
+    success: true,
+    manualLink: inviteLink,
+    emailNotSent: true,
+    reason: emailResult.reason,
+  });
 }

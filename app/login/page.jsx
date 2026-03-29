@@ -43,7 +43,7 @@ export default function LoginPage() {
         const { error: signUpErr } = await supabase.auth.signUp({
           email,
           password,
-          options: { data: { name: name.trim() } },
+          options: { data: { name: name.trim(), completed_profile: false } },
         });
         if (signUpErr) { setError(signUpErr.message); return; }
         setMessage('Check your email to confirm your account, then sign in.');
@@ -56,8 +56,12 @@ export default function LoginPage() {
           setError('Invalid email or password. Forgot your password?');
           return;
         }
-        // Auto-accept any pending invitations for this email
         if (data.user) {
+          // Ensure existing users have completed_profile set in metadata
+          if (data.user.user_metadata?.completed_profile === undefined) {
+            await supabase.auth.updateUser({ data: { completed_profile: true } });
+          }
+          // Auto-accept any pending invitations for this email
           await fetch('/api/accept-invite', { method: 'POST' }).catch(() => {});
         }
         window.location.href = '/';
