@@ -25,15 +25,16 @@ export async function middleware(request) {
   const { data: { user } } = await supabase.auth.getUser();
 
   const { pathname } = request.nextUrl;
-  const isAuthPage = pathname.startsWith('/login') || pathname.startsWith('/update-password');
+  const isLoginPage = pathname.startsWith('/login');
+  const isUpdatePassword = pathname.startsWith('/update-password');
 
-  // Redirect unauthenticated users to login
-  if (!user && !isAuthPage) {
+  // Redirect unauthenticated users to login (but allow update-password — arrives with fresh session from reset link)
+  if (!user && !isLoginPage && !isUpdatePassword) {
     return NextResponse.redirect(new URL('/login', request.url));
   }
 
-  // Redirect authenticated users away from login page
-  if (user && isAuthPage) {
+  // Redirect authenticated users away from login page only (not update-password)
+  if (user && isLoginPage) {
     return NextResponse.redirect(new URL('/', request.url));
   }
 
