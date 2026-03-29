@@ -48,7 +48,10 @@ export default function ConfirmPage() {
       }
 
       if (type === 'recovery') {
-        window.location.href = '/update-password';
+        // If user has no name yet, they came via an invite re-send — complete profile instead
+        const { data: { user: currentUser } } = await supabase.auth.getUser();
+        const hasName = currentUser?.user_metadata?.name;
+        window.location.href = hasName ? '/update-password' : '/complete-profile';
       } else if (type === 'invite') {
         window.location.href = '/complete-profile';
       } else {

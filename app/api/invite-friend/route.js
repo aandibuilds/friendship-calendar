@@ -48,9 +48,16 @@ export async function POST(req) {
   });
 
   if (sendErr) {
-    // If user already exists, that's okay — just tell the caller
     if (sendErr.message.includes('already been registered')) {
-      return NextResponse.json({ alreadyExists: true });
+      // Account exists from a previous invite attempt — send a recovery link
+      // so they can still complete their profile setup
+      const { error: resetErr } = await admin.auth.resetPasswordForEmail(email, {
+        redirectTo: redirectUrl,
+      });
+      if (resetErr) {
+        return NextResponse.json({ error: resetErr.message }, { status: 500 });
+      }
+      return NextResponse.json({ success: true });
     }
     return NextResponse.json({ error: sendErr.message }, { status: 500 });
   }
