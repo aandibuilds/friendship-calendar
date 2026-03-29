@@ -49,6 +49,8 @@ export default function ConfirmPage() {
 
       if (type === 'recovery') {
         window.location.href = '/update-password';
+      } else if (type === 'invite') {
+        window.location.href = '/complete-profile';
       } else {
         window.location.href = '/';
       }
