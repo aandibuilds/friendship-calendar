@@ -7,21 +7,33 @@ export default function ConfirmPage() {
 
   useEffect(() => {
     async function verify() {
-      const params = new URLSearchParams(window.location.hash.slice(1));
       const searchParams = new URLSearchParams(window.location.search);
+      const hashParams = new URLSearchParams(window.location.hash.slice(1));
 
       const tokenHash = searchParams.get('token_hash');
-      const type = searchParams.get('type');
+      const type = searchParams.get('type') || hashParams.get('type');
+      const code = searchParams.get('code');
+      const accessToken = hashParams.get('access_token');
+      const refreshToken = hashParams.get('refresh_token');
       const inviterId = searchParams.get('inviter');
       const friendId = searchParams.get('friend');
 
-      if (!tokenHash || !type) {
+      const supabase = createClient();
+      let error = null;
+
+      if (tokenHash && type) {
+        // token_hash flow (inviteUserByEmail, some recovery links)
+        ({ error } = await supabase.auth.verifyOtp({ token_hash: tokenHash, type }));
+      } else if (accessToken && refreshToken) {
+        // Implicit/hash flow (recovery emails from server-side resetPasswordForEmail)
+        ({ error: error } = await supabase.auth.setSession({ access_token: accessToken, refresh_token: refreshToken }));
+      } else if (code) {
+        // PKCE code flow
+        ({ error: error } = await supabase.auth.exchangeCodeForSession(code));
+      } else {
         window.location.href = '/login';
         return;
       }
-
-      const supabase = createClient();
-      const { error } = await supabase.auth.verifyOtp({ token_hash: tokenHash, type });
 
       if (error) {
         console.error('verifyOtp error:', error);
@@ -47,10 +59,11 @@ export default function ConfirmPage() {
         }
       }
 
-      if (type === 'recovery') {
-        // If user has no name yet, they came via an invite re-send — complete profile instead
-        const { data: { user: currentUser } } = await supabase.auth.getUser();
-        const hasName = currentUser?.user_metadata?.name;
+      const { data: { user: currentUser } } = await supabase.auth.getUser();
+      const hasName = currentUser?.user_metadata?.name;
+
+      if (type === 'recovery' || (accessToken && !hasName)) {
+        // Recovery link: go to update-password if already set up, complete-profile if new
         window.location.href = hasName ? '/update-password' : '/complete-profile';
       } else if (type === 'invite') {
         window.location.href = '/complete-profile';
