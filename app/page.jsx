@@ -56,6 +56,10 @@ function AppInner() {
         if (!user) { window.location.href = '/login'; return; }
         setUserId(user.id);
 
+        // Accept any pending friend invites before loading data
+        // (covers all entry paths: login, invite link, direct navigation)
+        await fetch('/api/accept-invite', { method: 'POST' }).catch(() => {});
+
         const [friendsData, eventsData, proposedData, profileData] = await Promise.all([
           db.getFriends(user.id),
           db.getEvents(user.id),

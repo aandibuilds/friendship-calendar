@@ -46,6 +46,18 @@ export default function ConfirmProfilePage() {
 
       if (urlToken) {
         // ── Mode A: Token-based invite signup ──
+        // First check if user is already signed in — if so, accept the invite
+        // directly and redirect to the app (no need to show signup form)
+        const supabase = createClient();
+        const { data: { user: existingAuth } } = await supabase.auth.getUser();
+
+        if (existingAuth) {
+          // User is already signed in — accept any pending invites and redirect
+          await fetch('/api/accept-invite', { method: 'POST' }).catch(() => {});
+          window.location.href = '/';
+          return;
+        }
+
         setToken(urlToken);
         const res = await fetch('/api/validate-token', {
           method: 'POST',
