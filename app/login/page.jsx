@@ -29,11 +29,20 @@ export default function LoginPage() {
 
     try {
       if (mode === 'reset') {
-        // ── Forgot password: send reset email ──
-        const { error: resetErr } = await supabase.auth.resetPasswordForEmail(email, {
-          redirectTo: `${window.location.origin}/auth/confirm`,
+        // ── Forgot password: send branded reset email via Resend ──
+        const res = await fetch('/api/reset-password', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email }),
         });
-        if (resetErr) { setError(resetErr.message); return; }
+        const data = await res.json();
+        if (data.fallback) {
+          // Resend not configured — fall back to Supabase's built-in email
+          const { error: resetErr } = await supabase.auth.resetPasswordForEmail(email, {
+            redirectTo: `${window.location.origin}/auth/confirm`,
+          });
+          if (resetErr) { setError(resetErr.message); return; }
+        }
         setMessage('Check your email for a password reset link.');
 
       } else if (mode === 'signup') {

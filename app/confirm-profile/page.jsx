@@ -3,13 +3,19 @@ import { useState, useEffect } from 'react';
 import { createClient } from '../../lib/supabase/client';
 
 /*
-  /confirm-profile — Two modes:
+  /confirm-profile — Three modes:
 
-  Mode A: ?token=XYZ (PUBLIC, no auth needed)
+  Mode A: ?token=XYZ, NEW user (PUBLIC, no auth needed)
     - Validates invite token
     - Shows signup form: email (locked), name, birthday, password
     - Creates account + accepts invite + creates friendship
     - Auto-signs in and redirects to /
+
+  Mode A2: ?token=XYZ, EXISTING user (PUBLIC, no auth needed)
+    - Validates invite token, detects existing account
+    - Shows sign-in form: email (locked), password only
+    - Signs in + accepts invite
+    - Redirects to /
 
   Mode B: No token (requires auth session)
     - For users with incomplete profiles (completed_profile = false)
@@ -19,7 +25,7 @@ import { createClient } from '../../lib/supabase/client';
 */
 
 export default function ConfirmProfilePage() {
-  // Token from URL (Mode A)
+  // Token from URL (Mode A / A2)
   const [token, setToken] = useState(null);
   const [tokenValid, setTokenValid] = useState(null); // null=loading, true, false
   const [tokenError, setTokenError] = useState('');
@@ -45,9 +51,9 @@ export default function ConfirmProfilePage() {
       const urlToken = params.get('token');
 
       if (urlToken) {
-        // ── Mode A: Token-based invite signup ──
+        // ── Mode A / A2: Token-based invite ──
         // First check if user is already signed in — if so, accept the invite
-        // directly and redirect to the app (no need to show signup form)
+        // directly and redirect to the app (no need to show any form)
         const supabase = createClient();
         const { data: { user: existingAuth } } = await supabase.auth.getUser();
 
@@ -97,7 +103,7 @@ export default function ConfirmProfilePage() {
     init();
   }, []);
 
-  // ── Mode A: Submit signup via invite token ──
+  // ── Mode A: Submit signup via invite token (NEW user) ──
   async function handleTokenSubmit(e) {
     e.preventDefault();
     setError('');
@@ -134,6 +140,33 @@ export default function ConfirmProfilePage() {
       setLoading(false);
       return;
     }
+
+    window.location.href = '/';
+  }
+
+  // ── Mode A2: Submit sign-in via invite token (EXISTING user) ──
+  async function handleExistingSignIn(e) {
+    e.preventDefault();
+    setError('');
+
+    if (!password) { setError('Please enter your password.'); return; }
+
+    setLoading(true);
+    const supabase = createClient();
+
+    const { error: signInErr } = await supabase.auth.signInWithPassword({
+      email,
+      password,
+    });
+
+    if (signInErr) {
+      setError('Invalid password. Try again or reset your password.');
+      setLoading(false);
+      return;
+    }
+
+    // Accept pending invites (including the one from this token)
+    await fetch('/api/accept-invite', { method: 'POST' }).catch(() => {});
 
     window.location.href = '/';
   }
@@ -221,10 +254,16 @@ export default function ConfirmProfilePage() {
     );
   }
 
-  // ── Main form ──
+  // ── Determine mode ──
   const isTokenMode = token && tokenValid;
-  const handleSubmit = isTokenMode ? handleTokenSubmit : handleProfileSubmit;
-  const showPasswordFields = isTokenMode; // Only show password for new signups
+  const isExistingUserMode = isTokenMode && existingUser;
+  const isNewUserMode = isTokenMode && !existingUser;
+
+  const handleSubmit = isExistingUserMode
+    ? handleExistingSignIn
+    : isNewUserMode
+      ? handleTokenSubmit
+      : handleProfileSubmit;
 
   return (
     <div style={{
@@ -252,30 +291,43 @@ export default function ConfirmProfilePage() {
           {isTokenMode ? "You're invited!" : 'Complete your profile'}
         </h2>
         <p style={{ fontSize: 13.5, color: '#6B7280', marginBottom: 24 }}>
-          {isTokenMode
-            ? `${inviterName} wants to stay connected with you.`
-            : 'Fill in your details to get started.'}
+          {isExistingUserMode
+            ? `${inviterName} wants to stay connected with you. Sign in to accept.`
+            : isNewUserMode
+              ? `${inviterName} wants to stay connected with you.`
+              : 'Fill in your details to get started.'}
         </p>
 
         <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+          {/* Email — always shown, always read-only */}
           <div>
             <label style={{ fontSize: 13, fontWeight: 600, color: '#374151', display: 'block', marginBottom: 5 }}>Email</label>
             <input type="email" value={email} readOnly
               style={{ ...inputStyle, background: '#F9FAFB', color: '#6B7280' }} />
           </div>
-          <div>
-            <label style={{ fontSize: 13, fontWeight: 600, color: '#374151', display: 'block', marginBottom: 5 }}>Your name</label>
-            <input type="text" value={name} onChange={e => setName(e.target.value)}
-              placeholder="What should friends call you?" required autoFocus style={inputStyle} />
-          </div>
-          <div>
-            <label style={{ fontSize: 13, fontWeight: 600, color: '#374151', display: 'block', marginBottom: 5 }}>Birthday</label>
-            <input type="date" value={birthday} onChange={e => setBirthday(e.target.value)}
-              required style={inputStyle} />
-          </div>
 
-          {showPasswordFields && (
+          {/* Mode A2: Existing user — just password */}
+          {isExistingUserMode && (
+            <div>
+              <label style={{ fontSize: 13, fontWeight: 600, color: '#374151', display: 'block', marginBottom: 5 }}>Password</label>
+              <input type="password" value={password} onChange={e => setPassword(e.target.value)}
+                placeholder="Your existing password" required autoFocus style={inputStyle} />
+            </div>
+          )}
+
+          {/* Mode A: New user — name, birthday, password, confirm */}
+          {isNewUserMode && (
             <>
+              <div>
+                <label style={{ fontSize: 13, fontWeight: 600, color: '#374151', display: 'block', marginBottom: 5 }}>Your name</label>
+                <input type="text" value={name} onChange={e => setName(e.target.value)}
+                  placeholder="What should friends call you?" required autoFocus style={inputStyle} />
+              </div>
+              <div>
+                <label style={{ fontSize: 13, fontWeight: 600, color: '#374151', display: 'block', marginBottom: 5 }}>Birthday</label>
+                <input type="date" value={birthday} onChange={e => setBirthday(e.target.value)}
+                  required style={inputStyle} />
+              </div>
               <div>
                 <label style={{ fontSize: 13, fontWeight: 600, color: '#374151', display: 'block', marginBottom: 5 }}>Password</label>
                 <input type="password" value={password} onChange={e => setPassword(e.target.value)}
@@ -285,6 +337,22 @@ export default function ConfirmProfilePage() {
                 <label style={{ fontSize: 13, fontWeight: 600, color: '#374151', display: 'block', marginBottom: 5 }}>Confirm password</label>
                 <input type="password" value={confirm} onChange={e => setConfirm(e.target.value)}
                   placeholder="Type the same password again" required style={inputStyle} />
+              </div>
+            </>
+          )}
+
+          {/* Mode B: Profile completion — name, birthday */}
+          {isProfileMode && (
+            <>
+              <div>
+                <label style={{ fontSize: 13, fontWeight: 600, color: '#374151', display: 'block', marginBottom: 5 }}>Your name</label>
+                <input type="text" value={name} onChange={e => setName(e.target.value)}
+                  placeholder="What should friends call you?" required autoFocus style={inputStyle} />
+              </div>
+              <div>
+                <label style={{ fontSize: 13, fontWeight: 600, color: '#374151', display: 'block', marginBottom: 5 }}>Birthday</label>
+                <input type="date" value={birthday} onChange={e => setBirthday(e.target.value)}
+                  required style={inputStyle} />
               </div>
             </>
           )}
@@ -302,10 +370,19 @@ export default function ConfirmProfilePage() {
             cursor: loading ? 'not-allowed' : 'pointer',
             opacity: loading ? 0.7 : 1, marginTop: 4,
           }}>
-            {loading ? 'Setting up...' : isTokenMode ? 'Accept invite & create account' : 'Save profile'}
+            {loading ? 'Setting up...'
+              : isExistingUserMode ? 'Sign in & accept invite'
+              : isNewUserMode ? 'Accept invite & create account'
+              : 'Save profile'}
           </button>
 
-          {isTokenMode && (
+          {isExistingUserMode && (
+            <p style={{ fontSize: 12.5, color: '#9CA3AF', textAlign: 'center', margin: '4px 0 0' }}>
+              <a href="/login" style={{ color: '#7C3AED', fontWeight: 600 }}>Forgot password?</a>
+            </p>
+          )}
+
+          {isNewUserMode && (
             <p style={{ fontSize: 12.5, color: '#9CA3AF', textAlign: 'center', margin: '4px 0 0' }}>
               Already have an account? <a href="/login" style={{ color: '#7C3AED', fontWeight: 600 }}>Sign in</a>
             </p>
