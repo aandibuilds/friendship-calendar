@@ -63,9 +63,19 @@ export default function FriendDetailModal({ friend: f, profile, onClose, onUpdat
   function logHangout() {
     if (!hangoutDate) { showToast('Please pick a date'); return; }
     const act = hangoutActivity.trim() || 'Hung out';
-    const updated = { ...f, hangouts: [...(f.hangouts || []), { date: hangoutDate, activity: act }] };
+    const hangout = { date: hangoutDate, activity: act };
+    const updated = { ...f, hangouts: [...(f.hangouts || []), hangout] };
     onUpdate(updated); setHangoutActivity('');
     showToast('Hangout logged.');
+
+    // Sync to linked friend's card (fire-and-forget)
+    if (f.linkedUserId) {
+      fetch('/api/sync-hangout', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ friendId: f.id, hangout }),
+      }).catch(() => {});
+    }
   }
 
   function loadConvoStarters() {
@@ -103,7 +113,7 @@ export default function FriendDetailModal({ friend: f, profile, onClose, onUpdat
               <div>
                 <div className="score-label">{getHealthLabel(sc)}</div>
                 <div className="score-sub">
-                  {days === null ? 'No hangouts logged yet' : `Last hangout ${days} day${days !== 1 ? 's' : ''} ago · Goal: every ${f.cadence} days`}
+                  {days === null ? 'No hangouts logged yet' : `Last hangout ${days} day${days !== 1 ? 's' : ''} ago \u00b7 Goal: every ${f.cadence} days`}
                 </div>
               </div>
             </div>
@@ -138,12 +148,12 @@ export default function FriendDetailModal({ friend: f, profile, onClose, onUpdat
             </div>
             {aiPanel && (
               <div className="ai-panel">
-                <div className="ai-panel-header"><span className="ai-chip">✦</span> {aiPanel.label}</div>
+                <div className="ai-panel-header"><span className="ai-chip">\u2726</span> {aiPanel.label}</div>
                 {(aiPanel.items || []).map((item, i) => (
                   <div key={i} className="ai-result-item"
                     onClick={() => {
                       if (aiPanel.type === 'convo') { navigator.clipboard.writeText(item); showToast('Copied to clipboard.'); }
-                      else { setHangoutActivity(item.length > 60 ? item.slice(0, 57) + '…' : item); showToast('Added to hangout log.'); }
+                      else { setHangoutActivity(item.length > 60 ? item.slice(0, 57) + '\u2026' : item); showToast('Added to hangout log.'); }
                     }}>
                     <span className="item-icon">{i + 1}</span>
                     <span>{item}</span>
@@ -174,7 +184,7 @@ export default function FriendDetailModal({ friend: f, profile, onClose, onUpdat
                 <input type="date" className="input" value={hangoutDate} onChange={e => setHangoutDate(e.target.value)} />
                 <input type="text" className="input" placeholder="What did you do?" value={hangoutActivity} onChange={e => setHangoutActivity(e.target.value)} onKeyDown={e => e.key === 'Enter' && logHangout()} />
               </div>
-              <button className="btn btn-primary" onClick={logHangout} style={{ width: '100%', borderRadius: 'var(--radius-xs)' }}>Log hangout ✓</button>
+              <button className="btn btn-primary" onClick={logHangout} style={{ width: '100%', borderRadius: 'var(--radius-xs)' }}>Log hangout \u2713</button>
             </div>
           </div>
 
@@ -186,7 +196,7 @@ export default function FriendDetailModal({ friend: f, profile, onClose, onUpdat
                 ? sorted.map((h, i) => (
                     <div key={i} className="hangout-entry">
                       <div className="hangout-date">{fmtDate(h.date)}</div>
-                      <div className="hangout-activity">{h.activity || '—'}</div>
+                      <div className="hangout-activity">{h.activity || '\u2014'}</div>
                     </div>
                   ))
                 : <div style={{ color: 'var(--ink-muted)', fontSize: '12.5px', padding: '4px 0' }}>No hangouts logged yet.</div>
@@ -200,9 +210,9 @@ export default function FriendDetailModal({ friend: f, profile, onClose, onUpdat
           <div style={{ margin: '16px 0 4px', padding: '14px 16px', background: 'var(--plum-pale)', borderRadius: 12, border: '1px solid rgba(124,58,237,0.15)' }}>
             {f.email && inviteState !== 'sending' && inviteState !== 'error' ? (
               <>
-                {/* Email on file — show pending status, copy button, resend */}
+                {/* Email on file \u2014 show pending status, copy button, resend */}
                 <div style={{ fontWeight: 600, fontSize: 13.5, marginBottom: 4 }}>
-                  {inviteState === 'sent' ? '✓ Invite sent!' : 'Invite pending'}
+                  {inviteState === 'sent' ? '\u2713 Invite sent!' : 'Invite pending'}
                 </div>
                 <div style={{ fontSize: 12.5, color: 'var(--ink-muted)', marginBottom: 10 }}>
                   {inviteState === 'sent'
@@ -210,7 +220,7 @@ export default function FriendDetailModal({ friend: f, profile, onClose, onUpdat
                     : `An invite was created for ${f.email}. Once they accept, they'll be connected here.`}
                 </div>
 
-                {/* Copy invite link button — direct user gesture, clipboard works reliably */}
+                {/* Copy invite link button \u2014 direct user gesture, clipboard works reliably */}
                 {inviteLink && (
                   <button
                     className="btn btn-primary btn-sm"
@@ -248,13 +258,13 @@ export default function FriendDetailModal({ friend: f, profile, onClose, onUpdat
                           showToast(`${f.name} is already connected!`);
                         } else if (data.manualLink) {
                           setInviteLink(data.manualLink);
-                          showToast('New invite link generated — tap Copy to share.');
+                          showToast('New invite link generated \u2014 tap Copy to share.');
                         } else {
                           showToast('Invite resent!');
                         }
                         setInviteState('sent');
                       } catch (err) {
-                        showToast('Failed to resend invite — try again.');
+                        showToast('Failed to resend invite \u2014 try again.');
                         setInviteState('error');
                       }
                     }}
@@ -265,7 +275,7 @@ export default function FriendDetailModal({ friend: f, profile, onClose, onUpdat
               </>
             ) : (
               <>
-                {/* No email on file — show email input + send */}
+                {/* No email on file \u2014 show email input + send */}
                 <div style={{ fontWeight: 600, fontSize: 13.5, marginBottom: 6 }}>
                   Invite {f.name} to the app
                 </div>
@@ -298,14 +308,14 @@ export default function FriendDetailModal({ friend: f, profile, onClose, onUpdat
                           showToast(`${f.name} is already connected!`);
                         } else if (data.manualLink) {
                           setInviteLink(data.manualLink);
-                          showToast('Invite created — tap Copy invite link to share.');
+                          showToast('Invite created \u2014 tap Copy invite link to share.');
                         } else {
                           showToast(`Invite sent to ${inviteEmail.trim()}!`);
                         }
                         setInviteState('sent');
                         if (inviteEmail !== f.email) onUpdate({ ...f, email: inviteEmail.trim() });
                       } catch (err) {
-                        showToast('Failed to send invite — try again.');
+                        showToast('Failed to send invite \u2014 try again.');
                         setInviteState('error');
                       }
                     }}
@@ -338,7 +348,7 @@ export default function FriendDetailModal({ friend: f, profile, onClose, onUpdat
         )}
         {f.linkedUserId && (
           <div style={{ margin: '16px 0 4px', padding: '10px 14px', background: '#F0FDF4', borderRadius: 10, border: '1px solid #BBF7D0', fontSize: 13, color: '#16A34A', fontWeight: 600 }}>
-            ✓ {f.name} is on Friendship Calendar
+            \u2713 {f.name} is on Friendship Calendar
           </div>
         )}
 
